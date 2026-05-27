@@ -58,6 +58,12 @@ function physicsStep(dt) {
       S.cmdVel = { linear: 0, angular: 0 };
       termLog(`=== FIN DU MATCH === Score final: ${S.score} pts`, 'warn');
       showNotif(`Match terminé ! Score: ${S.score} pts`, 'yellow');
+      // Sauvegarde du meilleur score
+      const _sess = Auth.getSession();
+      if (_sess) {
+        Auth.updateScore(_sess.username, 'high', S.score);
+        termLog(`[score] Score ${S.score} pts sauvegardé pour ${_sess.username}`, 'info');
+      }
       const ms = document.getElementById('matchStatus');
       ms.textContent = 'TERMINÉ'; ms.style.background = 'rgba(239,68,68,.15)'; ms.style.color = 'var(--red)';
       const timer = document.getElementById('mpTimer');

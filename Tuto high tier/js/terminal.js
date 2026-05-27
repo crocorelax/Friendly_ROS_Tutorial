@@ -24,6 +24,12 @@ const COMMANDS = {
   'stop_script':                 () => stopScript(),
   // Script editor
   'scripts':                     () => openScriptPanel(),
+  // Reset + quick launch
+  'reset':                       () => fullReset(),
+  'quicklaunch':                 () => cmdQuickLaunch(),
+  'ql':                          () => cmdQuickLaunch(),
+  // Start match shortcut
+  'start_match':                 cmdStartMatch,
   'estop off': cmdEstop,
   'estop on': () => {
     S.estop = true;
@@ -37,7 +43,9 @@ const COMMANDS = {
 };
 
 const CMD_HINTS = [
+  'quicklaunch',
   'ros2 launch bipboup robot.launch.py',
+  'estop off',
   'ros2 service call /estop std_srvs/srv/SetBool "{data: false}"',
   'teleop',
   'nav_to 80 60',
@@ -50,17 +58,16 @@ const CMD_HINTS = [
   'nav_stop',
   'stop_script',
   'scripts',
-  'ros2 run bipboup run_script "tour_de_jardin"',
-  'ros2 run bipboup run_script "rush_gardemanger"',
   'ros2 run bipboup run_script "nav_to 80 60; wait 1; nav_to 270 100"',
   'ros2 run bipboup start_match',
+  'start_match',
   'ros2 topic pub /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.5}, angular: {z: 0.0}}"',
   'ros2 topic list',
   'ros2 topic echo /scan',
   'ros2 topic echo /odom',
   'ros2 topic hz /scan',
   'ros2 node list',
-  'estop off',
+  'reset',
   'estop on',
   'clear',
   'help',
@@ -151,25 +158,30 @@ function handleCommand(cmd) {
 function cmdHelp() {
   termLog('═══ BipBoup ROS2 CLI — aide complète ═══', 'info');
   termLog('', 'out');
-  termLog('── DÉMARRAGE ──────────────────────────────────────', 'dim');
+  termLog('── DÉMARRAGE RAPIDE ────────────────────────────────', 'dim');
+  termLog('quicklaunch  (ou ql)          — lance nodes + relâche estop en une commande', 'out');
+  termLog('reset                         — réinitialisation complète (robot + match + nodes)', 'out');
+  termLog('', 'out');
+  termLog('── DÉMARRAGE MANUEL ────────────────────────────────', 'dim');
   termLog('ros2 launch bipboup robot.launch.py', 'out');
-  termLog('ros2 service call /estop std_srvs/srv/SetBool "{data: false}"', 'out');
+  termLog('estop off                     — (ou: ros2 service call /estop ...)', 'out');
   termLog('', 'out');
   termLog('── PILOTAGE ────────────────────────────────────────', 'dim');
   termLog('teleop                        — clavier ZQSD / ↑↓←→  (toggle)', 'out');
   termLog('nav_to <x> <y>                — navigation autonome  ex: nav_to 80 60', 'out');
-  termLog('                                Survole l\'arène pour voir les coords en temps réel', 'dim');
+  termLog('                                Survole l\'arène pour voir les coordonnées', 'dim');
   termLog('auto_collect                  — collecte automatique de toutes les plantes', 'out');
   termLog('cmd_vel <lin> <ang>           — commande directe  ex: cmd_vel 0.5 0.0', 'out');
   termLog('nav_stop | stop_script        — interrompre la navigation / le script', 'out');
   termLog('', 'out');
   termLog('── SCRIPTS ─────────────────────────────────────────', 'dim');
+  termLog('scripts                       — ouvrir l\'éditeur de scripts', 'out');
   termLog('ros2 run bipboup run_script "<cmd1>; wait <s>; <cmd2>; ..."', 'out');
-  termLog('  Prédéfinis: tour_de_jardin | rush_gardemanger | zigzag | demo_timed', 'out');
   termLog('  ex: ros2 run bipboup run_script "nav_to 80 60; wait 1; nav_to 270 100"', 'out');
+  termLog('  Dans un script: call <nom>  — appelle un de tes scripts sauvegardés', 'dim');
   termLog('', 'out');
   termLog('── MATCH ───────────────────────────────────────────', 'dim');
-  termLog('ros2 run bipboup start_match  — lancer le chrono (100s)', 'out');
+  termLog('start_match                   — lancer le chrono (100s)', 'out');
   termLog('', 'out');
   termLog('── DIAGNOSTIC ──────────────────────────────────────', 'dim');
   termLog('ros2 topic list | echo /scan | echo /odom | hz /scan', 'out');
@@ -319,16 +331,88 @@ function cmdRunScript(args) {
     termLog('', 'out');
     termLog('Format: "cmd1; wait <s>; cmd2; ..."', 'dim');
     termLog('Commandes disponibles dans un script:', 'dim');
-    termLog('  nav_to <x> <y>  wait <secondes>  cmd_vel <l> <a>  call <script>', 'dim');
+    termLog('  nav_to <x> <y>       — navigation autonome', 'dim');
+    termLog('  wait <secondes>      — pause  ex: wait 1.5', 'dim');
+    termLog('  cmd_vel <lin> <ang>  — commande directe', 'dim');
+    termLog('  call <nom_script>    — appelle un de tes scripts sauvegardés', 'dim');
+    termLog('  estop off / estop on', 'dim');
     termLog('', 'out');
-    termLog('Scripts prédéfinis:', 'dim');
-    termLog('  tour_de_jardin    — visite toutes les plantes', 'dim');
-    termLog('  rush_gardemanger  — cap direct vers le garde-manger', 'dim');
-    termLog('  zigzag            — exploration en zigzag', 'dim');
-    termLog('  ex: ros2 run bipboup run_script "tour_de_jardin"', 'dim');
+    termLog('Ouvre l\'éditeur: scripts', 'dim');
     return;
   }
   if (!nodesLaunched) { termLog('[script] Nodes non démarrés', 'err'); return; }
   if (S.estop)        { termLog('[script] E-STOP actif', 'err'); return; }
   runScript(args.trim());
+}
+
+// ══ QUICK LAUNCH ══
+
+function cmdQuickLaunch() {
+  if (nodesLaunched) { termLog('[quicklaunch] Nodes déjà actifs — tape "reset" pour repartir à zéro', 'warn'); return; }
+  termLog('', 'out');
+  termLog('═══ QUICK LAUNCH — démarrage automatique ═══', 'info');
+  termLog('[ql] Étape 1/2 — lancement des nodes...', 'dim');
+  cmdLaunch();
+  setTimeout(() => {
+    termLog('[ql] Étape 2/2 — relâchement E-STOP...', 'dim');
+    cmdEstop();
+    termLog('', 'out');
+    termLog('🚀 Robot prêt ! Choisis un mode:', 'info');
+    termLog('  auto_collect    — collecte automatique', 'dim');
+    termLog('  teleop          — pilotage clavier', 'dim');
+    termLog('  start_match     — lancer le chrono', 'dim');
+  }, 2500);
+}
+
+// ══ FULL RESET ══
+
+function fullReset() {
+  if (!confirm('Réinitialiser complètement le robot, les nodes et le match ?')) return;
+
+  // Stop scripts + nav + teleop
+  stopScript();
+  S.teleop = false;
+
+  // Reset robot pose
+  S.x = 30; S.y = 100; S.a = 0;
+  S.vx = 0; S.vy = 0; S.va = 0;
+  S.cmdVel = { linear: 0, angular: 0 };
+  S.odomDrift = 0;
+  S.odomHistory = [];
+  S.lidarHistory = [];
+
+  // E-STOP ON
+  S.estop = true;
+
+  // Nodes down
+  nodesLaunched = false;
+  NODES[2].ok = false;
+  NODES[3].ok = false;
+
+  // Match reset
+  S.matchRunning = false;
+  S.matchTime = 100;
+  S.score = 0;
+  GOALS.forEach(g => g.done = false);
+  MISSION_TASKS.forEach(t => t.done = false);
+
+  // UI reset
+  const ms = document.getElementById('matchStatus');
+  if (ms) {
+    ms.textContent = 'EN ATTENTE';
+    ms.style.background = 'rgba(234,179,8,.15)';
+    ms.style.color = 'var(--yellow)';
+  }
+  document.getElementById('missionPanel').style.display = 'none';
+
+  renderNodes();
+  updateMissionUI();
+  updateTopicVals();
+
+  termLog('', 'out');
+  termLog('═══ FULL RESET — système réinitialisé ═══', 'warn');
+  termLog('[reset] E-STOP actif · Nodes arrêtés · Robot à (30, 100) · Match annulé', 'info');
+  termLog('[reset] Lance: quicklaunch  —  ou manuellement: ros2 launch bipboup robot.launch.py', 'dim');
+
+  showNotif('Reset complet ✓', '');
 }

@@ -8,7 +8,7 @@ const S = {
   vx: 0, vy: 0, va: 0,
   // Control
   cmdVel: { linear: 0, angular: 0 },
-  estop: false,
+  estop: true,
   // Sensors
   lidarNoise: 0.08,
   odomDrift: 0,

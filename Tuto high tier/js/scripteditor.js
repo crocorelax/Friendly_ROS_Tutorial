@@ -1,53 +1,5 @@
 // ══ SCRIPT EDITOR PANEL ══
 
-const SCRIPT_PRESETS = [
-  {
-    name: 'tour_de_jardin',
-    label: 'Tour de jardin',
-    desc: 'Visite les 4 plantes puis le garde-manger',
-    script: `# Tour de jardin — 4 plantes + garde-manger
-# Coordonnées arène: survole la carte pour les voir
-nav_to 80 60
-nav_to 220 60
-nav_to 80 140
-nav_to 220 140
-nav_to 270 100`,
-  },
-  {
-    name: 'rush_gardemanger',
-    label: 'Rush garde-manger',
-    desc: 'Cap direct via le centre (25 pts)',
-    script: `# Rush garde-manger — priorité haute valeur
-nav_to 150 100
-nav_to 270 100`,
-  },
-  {
-    name: 'zigzag',
-    label: 'Exploration zigzag',
-    desc: 'Balayage en zigzag de l\'arène',
-    script: `# Exploration en zigzag
-nav_to 80 50
-nav_to 150 150
-nav_to 220 50
-nav_to 270 100`,
-  },
-  {
-    name: 'demo_timed',
-    label: 'Démo chronométrée',
-    desc: 'Collecte avec pauses entre objectifs',
-    script: `# Démo avec pauses — séquence réaliste
-nav_to 80 60
-wait 0.5
-nav_to 80 140
-wait 0.5
-nav_to 220 60
-wait 0.5
-nav_to 220 140
-wait 1
-nav_to 270 100`,
-  },
-];
-
 const SCRIPT_SYNTAX_HINT =
 `# Syntaxe — une commande par ligne (ou séparées par ;)
 # nav_to <lieu>          → nav_to plante1, nav_to gardemanger, nav_to centre...
@@ -55,13 +7,12 @@ const SCRIPT_SYNTAX_HINT =
 # wait <secondes>        → wait 2.5
 # cmd_vel <lin> <ang>    → cmd_vel 0.5 0.0
 # estop off / estop on
-# call <nom_script>      → call tour_de_jardin  (appel d'un autre script)
+# call <nom_script>      → call mon_script  (appel d'un script sauvegardé)
 `;
 
 function openScriptPanel() {
   const panel = document.getElementById('scriptPanel');
   panel.style.display = 'flex';
-  // Charger le hint si l'éditeur est vide
   const area = document.getElementById('scriptEditorArea');
   if (!area.value.trim()) area.value = SCRIPT_SYNTAX_HINT;
   renderScriptPresets();
@@ -73,21 +24,63 @@ function closeScriptPanel() {
 }
 
 function renderScriptPresets() {
-  const el = document.getElementById('scriptPresetList');
-  el.innerHTML = '';
-  SCRIPT_PRESETS.forEach(p => {
+  const el      = document.getElementById('scriptPresetList');
+  const isAdmin = Auth.isAdmin();
+  const session = Auth.getSession();
+  el.innerHTML  = '';
+
+  const saved = isAdmin
+    ? Persistence.getAllScripts('high')
+    : Persistence.getUserScripts('high');
+
+  const secLabel = document.createElement('div');
+  secLabel.className   = 'sp-section-label';
+  secLabel.textContent = isAdmin ? 'Tous les scripts' : 'Mes scripts';
+  el.appendChild(secLabel);
+
+  if (!saved.length) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'font-size:10px;color:var(--muted);padding:6px 8px';
+    empty.textContent   = 'Aucun script sauvegardé.';
+    el.appendChild(empty);
+    return;
+  }
+
+  saved.forEach(s => {
     const d = document.createElement('div');
     d.className = 'sp-preset-item';
-    d.title = p.desc;
-    d.innerHTML = `<div style="font-weight:700;color:var(--blue)">${p.label}</div><div style="font-size:9px;color:var(--muted)">${p.desc}</div>`;
-    d.onclick = () => loadPreset(p);
+    const ownerTag = s.owner && s.owner !== session?.username
+      ? `<span style="font-size:8px;color:var(--purple);margin-left:4px">${s.owner}</span>` : '';
+    d.innerHTML = `
+      <div style="display:flex;align-items:center;gap:4px">
+        <span style="font-weight:700;color:var(--green);flex:1">${s.name}${ownerTag}</span>
+        <button onclick="event.stopPropagation();_htDeleteScript('${s.id}','${s.owner||session?.username}')"
+          style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:11px;padding:1px 4px;transition:.15s"
+          onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--muted)'">✕</button>
+      </div>
+      <div style="font-size:9px;color:var(--muted)">${new Date(s.updatedAt||s.createdAt).toLocaleDateString('fr')}</div>`;
+    d.onclick = () => { document.getElementById('scriptEditorArea').value = s.code || ''; };
     el.appendChild(d);
   });
 }
 
-function loadPreset(preset) {
-  document.getElementById('scriptEditorArea').value = preset.script;
-  document.getElementById('scriptEditorArea').focus();
+function _htDeleteScript(id, owner) {
+  if (!confirm('Supprimer ce script ?')) return;
+  Persistence.deleteScript(id, owner);
+  renderScriptPresets();
+}
+
+function saveCurrentScript() {
+  const code = document.getElementById('scriptEditorArea').value.trim();
+  if (!code || code === SCRIPT_SYNTAX_HINT.trim()) {
+    termLog('[script] Éditeur vide — rien à sauvegarder', 'warn');
+    return;
+  }
+  const name = prompt('Nom du script :');
+  if (!name || !name.trim()) return;
+  Persistence.saveHighScript(name.trim(), code);
+  termLog(`[script] Script "${name.trim()}" sauvegardé`, 'info');
+  renderScriptPresets();
 }
 
 function clearEditor() {
@@ -96,23 +89,18 @@ function clearEditor() {
 
 function runEditorScript() {
   const raw = document.getElementById('scriptEditorArea').value;
-  // Filtrer les commentaires et lignes vides, rejoindre en séquence inline
   const lines = raw
     .split('\n')
     .map(l => l.replace(/#.*$/, '').trim())
     .filter(l => l);
 
-  if (!lines.length) {
-    termLog('[script] Éditeur vide', 'warn');
-    return;
-  }
+  if (!lines.length) { termLog('[script] Éditeur vide', 'warn'); return; }
   if (!nodesLaunched) { termLog('[script] Nodes non démarrés', 'err'); return; }
   if (S.estop)        { termLog('[script] E-STOP actif', 'err'); return; }
 
-  const inline = lines.join('; ');
   closeScriptPanel();
-  termLog(`[script] Exécution depuis l'éditeur — ${lines.length} instruction(s)`, 'info');
-  runScript(inline);
+  termLog(`[script] Exécution — ${lines.length} instruction(s)`, 'info');
+  runScript(lines.join('; '));
 }
 
 // ══ RESIZE ══
@@ -125,7 +113,7 @@ function initScriptResize() {
   handle.addEventListener('mousedown', e => {
     startX = e.clientX; startY = e.clientY;
     startW = panel.offsetWidth; startH = panel.offsetHeight;
-    panel.style.transform = 'none'; // désactive le centrage CSS pour passer en position fixe
+    panel.style.transform = 'none';
     panel.style.left = panel.getBoundingClientRect().left + 'px';
     document.addEventListener('mousemove', onResize);
     document.addEventListener('mouseup',   stopResize);
@@ -133,9 +121,9 @@ function initScriptResize() {
   });
 
   function onResize(e) {
-    panel.style.width    = Math.max(480, startW + e.clientX - startX) + 'px';
-    panel.style.height   = Math.max(280, startH + e.clientY - startY) + 'px';
-    panel.style.maxWidth = 'none';
+    panel.style.width     = Math.max(440, startW + e.clientX - startX) + 'px';
+    panel.style.height    = Math.max(260, startH + e.clientY - startY) + 'px';
+    panel.style.maxWidth  = 'none';
     panel.style.maxHeight = 'none';
   }
 
@@ -155,12 +143,11 @@ function initScriptDrag() {
   handle.addEventListener('mousedown', e => {
     if (e.target.tagName === 'BUTTON') return;
     const rect = panel.getBoundingClientRect();
-    // Figer la position avant de retirer le transform centré
     panel.style.transform = 'none';
     panel.style.left = rect.left + 'px';
     panel.style.top  = rect.top  + 'px';
     origLeft = rect.left; origTop = rect.top;
-    startX = e.clientX;  startY  = e.clientY;
+    startX = e.clientX;   startY  = e.clientY;
     document.addEventListener('mousemove', onDrag);
     document.addEventListener('mouseup',   stopDrag);
     e.preventDefault();

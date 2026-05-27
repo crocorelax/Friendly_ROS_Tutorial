@@ -1,213 +1,136 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<title>BipBoup · ROS Workstation</title>
-<link rel="stylesheet" href="css/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BipBoup · Plateforme</title>
+  <link rel="stylesheet" href="shared/shared.css">
 </head>
 <body>
 
-<!-- BOOT -->
-<div id="boot">
-  <div style="margin-bottom:16px;font-size:22px;font-weight:900;color:var(--green);letter-spacing:4px;font-family:'Nunito',sans-serif">
-    BIPBOUP<span style="color:#4a5568"> · 3iL</span>
+<!-- ══════════ AUTH SCREEN ══════════ -->
+<div id="authScreen" class="screen active">
+  <div class="auth-logo">
+    <h1>BIP<em>BOUP</em></h1>
+    <p>Plateforme d'enseignement robotique · Club 3iL</p>
+  </div>
+
+  <!-- Connexion -->
+  <div id="loginPanel" class="auth-panel">
+    <h2>Connexion</h2>
+    <div class="form-group">
+      <label>Pseudo</label>
+      <input id="loginUser" type="text" placeholder="admin" autocomplete="username">
+    </div>
+    <div class="form-group">
+      <label>Mot de passe</label>
+      <input id="loginPass" type="password" autocomplete="current-password">
+    </div>
+    <div class="auth-error" id="loginError"></div>
+    <button class="btn-primary" onclick="handleLogin()">Se connecter</button>
+    <p class="auth-switch">Pas de compte ? <a onclick="showRegister()">S'inscrire</a></p>
+  </div>
+
+  <!-- Inscription -->
+  <div id="registerPanel" class="auth-panel" style="display:none">
+    <h2>Inscription</h2>
+    <div class="form-group">
+      <label>Pseudo</label>
+      <input id="regUser" type="text" placeholder="lettres, chiffres, _" autocomplete="username">
+    </div>
+    <div class="form-group">
+      <label>Mot de passe</label>
+      <input id="regPass" type="password" autocomplete="new-password">
+    </div>
+    <div class="form-group">
+      <label>Confirmer</label>
+      <input id="regPass2" type="password" autocomplete="new-password">
+    </div>
+    <div class="auth-error" id="regError"></div>
+    <button class="btn-primary" onclick="handleRegister()">Créer le compte</button>
+    <p class="auth-switch">Déjà inscrit ? <a onclick="showLogin()">Se connecter</a></p>
   </div>
 </div>
 
-<!-- APP -->
-<div id="app">
-  <div class="titlebar">
-    <div class="tb-dots">
-      <div class="tb-dot" style="background:#ef4444"></div>
-      <div class="tb-dot" style="background:#eab308"></div>
-      <div class="tb-dot" style="background:#22c55e"></div>
+<!-- ══════════ MENU PRINCIPAL ══════════ -->
+<div id="menuScreen" class="screen">
+
+  <div class="platform-topbar">
+    <div class="pt-logo">BIP<em>BOUP</em></div>
+    <div class="pt-user">
+      <span id="ptUsername"></span>
+      <span id="ptLives"  class="lives-badge"></span>
+      <span id="ptRole"   class="role-badge"></span>
+      <span id="ptScores" class="scores-badge" style="display:none"></span>
     </div>
-    <div class="tb-title">BipBoup ROS Workstation — Coupe de France de Robotique 2026</div>
-    <div class="tb-ros" id="tbRos">ROS2 HUMBLE ●</div>
-    <button class="tb-action-btn" onclick="startTutorial()" title="Tutoriel interactif">💡</button>
-    <button class="tb-action-btn" onclick="openHandbook()"  title="Guide complet">🏆</button>
+    <button class="pt-logout" onclick="handleLogout()">Déconnexion</button>
   </div>
 
-  <div class="workspace">
+  <div class="platform-content">
 
-    <!-- LEFT: TOPICS + NODES -->
-    <div class="panel topics-panel">
-      <div class="panel-head">
-        <span class="ph-title">Topics ROS2</span>
-        <span class="ph-status status-ok" id="rosStatus">CONNECTED</span>
-      </div>
-      <div id="topicsList" style="overflow-y:auto;flex:1"></div>
-      <div class="panel-head" style="border-top:1px solid var(--border)">
-        <span class="ph-title">Nodes actifs</span>
-      </div>
-      <div id="nodesList"></div>
-    </div>
-
-    <!-- CENTER: RVIZ -->
-    <div class="panel">
-      <div class="panel-head">
-        <span class="ph-title">RViz2 — Vue capteurs</span>
-        <span class="ph-status status-ok">LIVE</span>
-      </div>
-      <div class="rviz-toolbar">
-        <button class="rviz-btn active" id="btnLidar"  onclick="toggleViz('lidar')">LiDAR</button>
-        <button class="rviz-btn active" id="btnOdom"   onclick="toggleViz('odom')">Odom</button>
-        <button class="rviz-btn active" id="btnMap"    onclick="toggleViz('map')">Carte</button>
-        <button class="rviz-btn active" id="btnRobot"  onclick="toggleViz('robot')">Robot</button>
-        <div class="rviz-sep"></div>
-        <button class="rviz-btn" onclick="resetView()">Reset vue</button>
-        <div style="margin-left:auto;font-size:9px;color:var(--muted)" id="rvizFps">60 Hz</div>
-      </div>
-      <canvas id="rvizCanvas"></canvas>
-    </div>
-
-    <!-- RIGHT: ARENA -->
-    <div class="panel">
-      <div class="panel-head">
-        <span class="ph-title">Arène — Coupe de France 2026</span>
-        <span id="arenaCoords" style="font-size:9px;color:var(--blue);font-family:var(--mono);letter-spacing:.5px;margin-left:8px;min-width:72px"></span>
-        <span class="ph-status" id="matchStatus" style="background:rgba(234,179,8,.15);color:var(--yellow)">EN ATTENTE</span>
-      </div>
-      <canvas id="arenaCanvas"></canvas>
-    </div>
-
-    <!-- BOTTOM: TERMINAL + ROS LOG (côte à côte) -->
-    <div class="panel terminal">
-
-      <!-- Panneau Terminal -->
-      <div id="termPane" class="pane">
-        <div class="panel-head">
-          <span class="ph-title">Terminal ROS2</span>
-          <span style="font-size:9px;color:var(--muted);margin-left:6px">bipboup@robot:~$</span>
-          <button class="rviz-btn" onclick="openScriptPanel()" style="margin-left:auto">Scripts</button>
-          <span class="ph-status status-ok" style="margin-left:8px">bash</span>
-        </div>
-        <div class="term-body" id="termBody"></div>
-        <div class="term-input-row">
-          <span class="term-prompt">bipboup@robot:~$ </span>
-          <input class="term-input" id="termInput"
-                 placeholder="help — teleop — nav_to plante1 — auto_collect ..."
-                 autocomplete="off" spellcheck="false">
-          <span class="autocomplete" id="autoHint"></span>
+    <!-- ── Cartes de sélection ── -->
+    <div class="tier-cards">
+      <div class="tier-card" onclick="goToTier('low')">
+        <div class="tc-icon">🤖</div>
+        <div class="tc-label">LOW TIER · BLOCS</div>
+        <h2>NavSim</h2>
+        <p>Programme un robot avec des blocs visuels glissés-déposés. 3 niveaux de difficulté, LiDAR, dérive et corrections.</p>
+        <div class="tc-tags">
+          <span class="tc-tag tag-green">Blocs visuels</span>
+          <span class="tc-tag tag-blue">3 niveaux</span>
+          <span class="tc-tag tag-purple">LiDAR</span>
+          <span class="tc-tag tag-orange">Score</span>
         </div>
       </div>
 
-      <!-- Séparateur draggable -->
-      <div id="paneSplitter" class="pane-splitter"></div>
-
-      <!-- Panneau ROS Log -->
-      <div id="logPane" class="pane">
-        <div class="panel-head">
-          <span class="ph-title">ROS Log</span>
-          <div id="roslogFilters" style="display:flex;align-items:center;gap:4px;margin-left:8px">
-            <button class="filter-toggle info  active" id="fInfo"  onclick="toggleFilter('info')">INFO</button>
-            <button class="filter-toggle warn  active" id="fWarn"  onclick="toggleFilter('warn')">WARN</button>
-            <button class="filter-toggle error active" id="fError" onclick="toggleFilter('error')">ERROR</button>
-            <button class="filter-toggle debug"        id="fDebug" onclick="toggleFilter('debug')">DEBUG</button>
-          </div>
+      <div class="tier-card" onclick="goToTier('high')">
+        <div class="tc-icon">🖥️</div>
+        <div class="tc-label">HIGH TIER · ROS2</div>
+        <h2>ROS Workstation</h2>
+        <p>Simulation ROS2 réaliste. Terminal de commandes, navigation autonome, capteurs et mission chronométrée.</p>
+        <div class="tc-tags">
+          <span class="tc-tag tag-green">ROS2</span>
+          <span class="tc-tag tag-blue">Terminal</span>
+          <span class="tc-tag tag-yellow">Mission</span>
+          <span class="tc-tag tag-purple">LiDAR</span>
         </div>
-        <div class="term-body" id="roslogBody" style="font-size:10px;line-height:1.6"></div>
-      </div>
-
-    </div>
-
-  </div><!-- .workspace -->
-
-  <div class="statusbar">
-    <div class="sb-item"><div class="dot" style="background:var(--green)"></div>ROS2 HUMBLE</div>
-    <div class="sb-sep"></div>
-    <div class="sb-item">Battery: <span id="sbBat"  style="color:var(--green)">87%</span></div>
-    <div class="sb-item">CPU:     <span id="sbCpu"  style="color:var(--text)">23%</span></div>
-    <div class="sb-item">LiDAR:   <span id="sbLidar"style="color:var(--green)">OK</span></div>
-    <div class="sb-item">Odom:    <span id="sbOdom" style="color:var(--green)">OK</span></div>
-    <div class="sb-item">WiFi:    <span id="sbWifi" style="color:var(--green)">-42dBm</span></div>
-    <div class="sb-right">
-      <div class="sb-item" id="sbTime">00:00:00</div>
-      <div class="sb-item" style="color:var(--green)">BipBoup v2.1.0</div>
-    </div>
-  </div>
-</div><!-- #app -->
-
-<!-- MISSION PANEL -->
-<div id="missionPanel" style="display:none">
-  <div class="mp-title">⚡ MISSION — 100s</div>
-  <div id="missionTasks"></div>
-  <div class="mp-score">Score: <span id="mpScore">0</span> pts</div>
-  <div class="mp-timer" id="mpTimer">1:40</div>
-</div>
-
-<div id="panicOverlay"></div>
-<div class="notif" id="notif"></div>
-
-<!-- TUTORIAL -->
-<div id="tutOverlay"   style="display:none"></div>
-<div id="tutSpotlight" style="display:none"></div>
-<div id="tutCard"      style="display:none">
-  <div class="tut-title"></div>
-  <div class="tut-body"></div>
-  <div class="tut-footer">
-    <span class="tut-counter"></span>
-    <div style="display:flex;gap:6px;margin-left:auto">
-      <button class="tut-prev" onclick="prevTutStep()">← Préc</button>
-      <button class="tut-next" onclick="nextTutStep()">Suivant →</button>
-      <button class="tut-close" onclick="closeTutorial()">✕</button>
-    </div>
-  </div>
-</div>
-
-<!-- HANDBOOK PANEL -->
-<div id="handbookPanel" style="display:none">
-  <div class="hb-head">
-    <span style="font-size:11px;font-weight:700;color:var(--text);letter-spacing:.5px">🏆 Guide BipBoup ROS Workstation</span>
-    <button onclick="closeHandbook()" style="margin-left:auto;background:none;border:1px solid var(--border2);color:var(--muted);font-family:var(--mono);font-size:11px;cursor:pointer;padding:3px 9px;border-radius:4px;transition:.15s" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--muted)'">✕ Fermer</button>
-  </div>
-  <div class="hb-body">
-    <nav class="hb-nav" id="hbNav"></nav>
-    <div class="hb-main">
-      <div id="hbContent"></div>
-    </div>
-  </div>
-</div>
-
-<!-- SCRIPT EDITOR PANEL -->
-<div id="scriptPanel">
-  <div class="panel-head sp-drag-handle" style="border-radius:6px 6px 0 0;cursor:move">
-    <span class="ph-title">Script Editor</span>
-    <span style="font-size:9px;color:var(--muted);margin-left:6px">bipboup_strategy/scripts</span>
-    <button onclick="closeScriptPanel()" style="margin-left:auto;background:none;border:none;color:var(--muted);font-family:var(--mono);font-size:14px;cursor:pointer;line-height:1">×</button>
-  </div>
-  <div class="sp-body">
-    <div class="sp-presets">
-      <div class="sp-section-label">Prédéfinis</div>
-      <div id="scriptPresetList"></div>
-    </div>
-    <div class="sp-editor">
-      <textarea id="scriptEditorArea" spellcheck="false"></textarea>
-      <div class="sp-toolbar">
-        <button class="sp-btn run" onclick="runEditorScript()">▶ Exécuter</button>
-        <button class="sp-btn danger" onclick="clearEditor()">Effacer</button>
-        <span class="sp-hint">Une commande par ligne · # commentaire · wait 1.5</span>
       </div>
     </div>
+
+    <!-- ── Bouton admin (caché pour les joueurs) ── -->
+    <div id="adminSection" style="display:none">
+      <button class="btn-admin" onclick="openAdminPanel()">⚙ Panel Admin</button>
+    </div>
+
+    <!-- ── Classement ── -->
+    <div class="leaderboard-section">
+      <div class="lb-header">
+        <h3>Classement</h3>
+        <div class="lb-tabs">
+          <button class="lb-tab active" id="tabLow"      onclick="switchTab('low')">Low Tier</button>
+          <button class="lb-tab"        id="tabHigh"     onclick="switchTab('high')">High Tier</button>
+          <button class="lb-tab"        id="tabCombined" onclick="switchTab('combined')">Combiné</button>
+        </div>
+      </div>
+      <div class="lb-body" id="lbBody"></div>
+    </div>
+
+  </div><!-- .platform-content -->
+</div><!-- #menuScreen -->
+
+<!-- ══════════ MODAL ADMIN ══════════ -->
+<div id="adminOverlay" style="display:none" class="modal-overlay" onclick="closeAdminPanel()"></div>
+<div id="adminPanel" class="modal-panel">
+  <div class="modal-head">
+    ⚙ Panel Administration
+    <button class="modal-close" onclick="closeAdminPanel()">✕</button>
   </div>
-  <!-- Poignée resize coin bas-droit -->
-  <div id="scriptResizeHandle" class="sp-resize-handle"></div>
+  <div id="adminContent"></div>
 </div>
 
-<!-- Scripts — ordre de chargement important (dépendances globales) -->
-<script src="js/state.js"></script>
-<script src="js/ui.js"></script>
-<script src="js/terminal.js"></script>
-<script src="js/mission.js"></script>
-<script src="js/nav.js"></script>
-<script src="js/roslog.js"></script>
-<script src="js/scripteditor.js"></script>
-<script src="js/render.js"></script>
-<script src="js/physics.js"></script>
-<script src="js/tutorial.js"></script>
-<script src="js/handbook.js"></script>
-<script src="js/boot.js"></script>
-<script src="js/main.js"></script>
+<script src="shared/storage.js"></script>
+<script src="shared/auth.js"></script>
+<script src="shared/menu.js"></script>
 
 </body>
 </html>

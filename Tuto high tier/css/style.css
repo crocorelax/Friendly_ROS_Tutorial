@@ -24,6 +24,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
 .tb-dot{width:10px;height:10px;border-radius:50%}
 .tb-title{font-size:11px;color:var(--muted);flex:1;text-align:center;letter-spacing:1px}
 .tb-ros{font-size:10px;color:var(--green);letter-spacing:1px}
+.tb-platform-btn{font-size:10px;font-family:var(--mono);color:var(--muted);text-decoration:none;border:1px solid var(--border2);border-radius:4px;padding:2px 8px;transition:.15s;white-space:nowrap;flex-shrink:0}
+.tb-platform-btn:hover{color:var(--green);border-color:var(--green)}
 
 .workspace{flex:1;display:grid;grid-template-columns:220px 1fr 1fr;grid-template-rows:1fr 200px;min-height:0;gap:1px;background:var(--border)}
 
@@ -214,3 +216,36 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--m
 .sp-btn.run:hover{background:rgba(0,214,143,.08)}
 .sp-btn.danger{border-color:var(--muted2);color:var(--muted)}
 .sp-hint{font-size:9px;color:var(--muted);margin-left:auto}
+
+/* ══ ARENA EDITOR ════════════════════════════════════════ */
+.ae-panel{background:var(--panel);border:1px solid var(--border2);border-radius:10px;display:flex;flex-direction:column;overflow:hidden;max-height:92vh;box-shadow:0 12px 48px rgba(0,0,0,.8)}
+.ae-head{display:flex;align-items:center;padding:10px 14px;background:var(--panel2);border-bottom:1px solid var(--border);flex-shrink:0}
+.ae-body{display:flex;gap:0;overflow:hidden;flex:1;min-height:0}
+.ae-toolbar{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.ae-tool{background:var(--panel2);border:1px solid var(--border2);color:var(--muted);border-radius:5px;padding:4px 10px;font-size:11px;font-family:var(--mono);cursor:pointer;transition:.12s;white-space:nowrap}
+.ae-tool:hover{border-color:var(--blue);color:var(--blue)}
+.ae-tool.ae-active{border-color:var(--blue);color:var(--blue);background:rgba(56,189,248,.08)}
+.ae-tool.ae-danger{border-color:rgba(239,68,68,.3);color:rgba(239,68,68,.6)}
+.ae-tool.ae-danger:hover,.ae-tool.ae-danger.ae-active{border-color:var(--red);color:var(--red);background:rgba(239,68,68,.08)}
+.ae-sidebar{width:220px;border-left:1px solid var(--border);padding:12px;display:flex;flex-direction:column;gap:6px;overflow-y:auto;flex-shrink:0}
+.ae-sec-label{font-size:9px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:2px}
+.ae-props-box{background:var(--panel2);border:1px solid var(--border);border-radius:6px;padding:8px;display:flex;flex-direction:column;gap:6px;min-height:80px}
+.ae-prop-title{font-size:11px;font-weight:700;color:var(--text);margin-bottom:2px}
+.ae-field{display:flex;align-items:center;gap:6px}
+.ae-field label{font-size:10px;color:var(--muted);min-width:38px;font-family:var(--mono)}
+.ae-field input{flex:1;background:var(--bg);border:1px solid var(--border2);color:var(--text);border-radius:4px;padding:2px 6px;font-size:11px;font-family:var(--mono);outline:none;min-width:0}
+.ae-field input:focus{border-color:var(--blue)}
+.ae-field input[type=color]{padding:1px 2px;height:24px;cursor:pointer}
+.ae-saved-list{display:flex;flex-direction:column;gap:4px;max-height:140px;overflow-y:auto}
+.ae-saved-item{display:flex;align-items:center;gap:4px;padding:4px 6px;background:var(--panel2);border:1px solid var(--border);border-radius:5px;font-size:11px}
+.ae-saved-name{flex:1;color:var(--text);font-family:var(--mono);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ae-saved-btn{background:none;border:1px solid var(--border2);color:var(--muted);border-radius:3px;padding:1px 7px;font-size:10px;cursor:pointer;transition:.1s;white-space:nowrap}
+.ae-saved-btn:hover{border-color:var(--green);color:var(--green)}
+.ae-saved-del:hover{border-color:var(--red) !important;color:var(--red) !important}
+.ae-btn{border-radius:5px;padding:6px 12px;font-size:11px;font-weight:700;font-family:var(--mono);cursor:pointer;transition:.12s;text-align:center}
+.ae-btn-save{background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.35);color:var(--blue)}
+.ae-btn-save:hover{background:rgba(56,189,248,.2)}
+.ae-btn-reset{background:var(--panel2);border:1px solid var(--border2);color:var(--muted)}
+.ae-btn-reset:hover{border-color:var(--muted);color:var(--text)}
+.ae-btn-apply{background:rgba(0,214,143,.15);border:1px solid rgba(0,214,143,.4);color:var(--green);font-size:12px}
+.ae-btn-apply:hover{background:rgba(0,214,143,.25)}

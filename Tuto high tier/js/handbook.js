@@ -79,7 +79,9 @@ const HANDBOOK_SECTIONS = [
 
 <h4>Démarrage</h4>
 <ul>
-  <li><code>ros2 launch bipboup robot.launch.py</code> — démarre nav2 + stratégie</li>
+  <li><code>quicklaunch</code> (ou 🚀 dans la barre) — lance tout automatiquement en 2.5s</li>
+  <li><code>reset</code> (ou 🔄 dans la barre) — réinitialise complètement le robot + match</li>
+  <li><code>ros2 launch bipboup robot.launch.py</code> — démarre nav2 + stratégie (manuel)</li>
   <li><code>estop off</code> — relâche l'arrêt d'urgence</li>
   <li><code>estop on</code> — active l'arrêt d'urgence</li>
 </ul>
@@ -104,15 +106,16 @@ const HANDBOOK_SECTIONS = [
 
 <h4>Scripts</h4>
 <ul>
-  <li><code>scripts</code> — ouvrir l'éditeur de scripts</li>
-  <li><code>ros2 run bipboup run_script "&lt;séquence&gt;"</code></li>
-  <li><code>ros2 run bipboup run_script "tour_de_jardin"</code> — script prédéfini</li>
+  <li><code>scripts</code> — ouvrir l'éditeur de scripts (écrire, sauvegarder, exécuter)</li>
+  <li><code>ros2 run bipboup run_script "&lt;séquence&gt;"</code> — séquence inline</li>
+  <li class="indent">Ex : <code>run_script "nav_to 80 60; wait 1; nav_to 270 100"</code></li>
   <li><code>stop_script</code> — interrompre le script en cours</li>
 </ul>
 
 <h4>Match</h4>
 <ul>
-  <li><code>ros2 run bipboup start_match</code> — lancer le chrono (100s)</li>
+  <li><code>start_match</code> — lancer le chrono 100s (raccourci)</li>
+  <li><code>ros2 run bipboup start_match</code> — commande complète équivalente</li>
 </ul>
 
 <h4>Diagnostic</h4>
@@ -163,34 +166,30 @@ const HANDBOOK_SECTIONS = [
   <li><code>cmd_vel &lt;lin&gt; &lt;ang&gt;</code> — commande directe</li>
   <li><code>estop off / estop on</code></li>
   <li><code># commentaire</code> — lignes ignorées</li>
-  <li><code>call &lt;nom_script&gt;</code> — appelle un script prédéfini depuis un autre script</li>
+  <li><code>call &lt;nom_script&gt;</code> — appelle l'un de tes scripts sauvegardés</li>
 </ul>
 
 <h4>Appel de scripts entre eux</h4>
-<p>Un script peut en appeler un autre avec <code>call</code>. Les lignes du script appelé sont injectées à la position courante — l'exécution est séquentielle, pas parallèle.</p>
+<p>Un script peut en appeler un autre avec <code>call</code>. Le script appelé doit être sauvegardé dans ton éditeur. Les lignes sont injectées à la position courante — exécution séquentielle, pas parallèle.</p>
 <pre>
-# Script principal
-nav_to centre
-call rush_gardemanger   ← exécute rush_gardemanger ici
-nav_to depart
-</pre>
-
-<h4>Scripts prédéfinis</h4>
-<ul>
-  <li><b>tour_de_jardin</b> — (80,60) → (220,60) → (80,140) → (220,140) → (270,100)</li>
-  <li><b>rush_gardemanger</b> — (150,100) → (270,100) direct, priorité haute valeur</li>
-  <li><b>zigzag</b> — exploration en zigzag (bonne couverture terrain)</li>
-  <li><b>demo_timed</b> — collecte avec pauses (démo réaliste)</li>
-</ul>
-
-<h4>Écrire son propre script</h4>
-<p>Dans l'éditeur (bouton <b>Scripts</b>) :</p>
-<pre>
-# Mon script personnalisé
-# Survole l'arène pour obtenir les coordonnées
+# Script "collecte_complete"
 nav_to 80 60
 wait 0.5
-nav_to 80 140
+call rush_gardemanger   ← exécute ton script "rush_gardemanger"
+</pre>
+<p><b>Sécurité :</b> <code>call</code> n'a accès qu'à tes propres scripts sauvegardés.</p>
+
+<h4>Écrire et sauvegarder un script</h4>
+<p>Dans l'éditeur (bouton <b>Scripts</b> ou commande <code>scripts</code>) :</p>
+<ol>
+  <li>Écris ta séquence dans la zone texte</li>
+  <li>Clique <b>💾 Sauvegarder</b> et donne-lui un nom</li>
+  <li>Clique <b>▶ Exécuter</b> ou rappelle-le avec <code>call &lt;nom&gt;</code></li>
+</ol>
+<pre>
+# Exemple : "rush_gardemanger"
+# Survole l'arène pour voir les coordonnées en temps réel
+nav_to 150 100
 nav_to 270 100
 </pre>`,
   },
@@ -238,8 +237,8 @@ nav_to 270 100
 <ol>
   <li><b>Démarrer vite</b> — les 2 premières étapes (launch + estop) ne coûtent pas de temps de match. Fais-les avant <code>start_match</code>.</li>
   <li><b>auto_collect avant start_match</b> — lance <code>auto_collect</code> pour commencer à naviguer, puis <code>start_match</code> dès que le robot bouge.</li>
-  <li><b>Priorité garde-manger</b> — 25 pts d'un coup. Le script <code>rush_gardemanger</code> y va directement.</li>
-  <li><b>Plantes en chemin</b> — le <code>tour_de_jardin</code> optimise le parcours pour tout récupérer.</li>
+  <li><b>Priorité garde-manger</b> — 25 pts d'un coup. Écris un script <code>nav_to 270 100</code> et sauvegarde-le pour le réutiliser.</li>
+  <li><b>Plantes en chemin</b> — <code>auto_collect</code> collecte tout automatiquement, ou écris ta propre séquence dans l'éditeur.</li>
 </ol>
 
 <h4>Comprendre la dérive odométrique</h4>

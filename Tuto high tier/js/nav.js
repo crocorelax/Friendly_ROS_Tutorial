@@ -1,10 +1,3 @@
-// Scripts prédéfinis (coordonnées uniquement)
-const NAV_SCRIPTS = {
-  'tour_de_jardin':   'nav_to 80 60; nav_to 220 60; nav_to 80 140; nav_to 220 140; nav_to 270 100',
-  'rush_gardemanger': 'nav_to 150 100; nav_to 270 100',
-  'zigzag':           'nav_to 80 50; nav_to 150 150; nav_to 220 50; nav_to 270 100',
-};
-
 // ══ NAVIGATION AUTONOME ══
 
 function navTo(x, y, label, onArrival) {
@@ -129,11 +122,7 @@ function autoCollect() {
 let _scriptQueue = [];
 
 function runScript(text) {
-  // Accepte un script prédéfini par nom ou une séquence inline
-  const preset = NAV_SCRIPTS[text.trim().toLowerCase()];
-  const source  = preset || text;
-  const lines   = source.split(';').map(l => l.trim()).filter(l => l);
-
+  const lines = text.split(';').map(l => l.trim()).filter(l => l);
   _scriptQueue = lines;
   termLog(`[script] ${lines.length} instruction(s) chargée(s)`, 'info');
   _execNextScript();
@@ -157,16 +146,17 @@ function _execNextScript() {
     cmdNavTo(cmd.slice(7), _execNextScript);
 
   } else if (cmd.startsWith('call ')) {
-    // Appel d'un script prédéfini par nom — splice ses lignes en tête de queue
+    // Appel d'un script sauvegardé par l'utilisateur courant uniquement
     const name = cmd.slice(5).trim().toLowerCase();
-    const preset = typeof SCRIPT_PRESETS !== 'undefined'
-      ? SCRIPT_PRESETS.find(p => p.name === name) : null;
-    if (preset) {
-      const sub = preset.script.split('\n').map(l => l.replace(/#.*$/, '').trim()).filter(l => l);
+    const userScripts = Persistence.getUserScripts('high');
+    const found = userScripts.find(s => s.name.toLowerCase() === name);
+    if (found && found.code) {
+      const sub = found.code.split('\n').map(l => l.replace(/#.*$/, '').trim()).filter(l => l);
       _scriptQueue.unshift(...sub);
-      termLog(`[script] call "${name}" — ${sub.length} instruction(s) injectée(s)`, 'info');
+      termLog(`[script] call "${found.name}" — ${sub.length} instruction(s) injectée(s)`, 'info');
     } else {
       termLog(`[script] call: script introuvable — "${name}"`, 'err');
+      termLog('[script] Vérifiez vos scripts sauvegardés (Scripts > liste)', 'dim');
     }
     _execNextScript();
 

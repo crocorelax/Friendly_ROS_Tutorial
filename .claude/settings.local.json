@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Recurse -Path \"C:\\\\Users\\\\lacostea\\\\OneDrive - GROUPE 3IL\\\\Documents\\\\GitHub\\\\Friendly_ROS_Tutorial\")",
+      "Bash(Select-Object FullName)",
+      "Bash(Sort-Object FullName)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\lacostea\\\\OneDrive - GROUPE 3IL\\\\Documents\\\\GitHub\\\\Friendly_ROS_Tutorial\" -Recurse -Include \"*.html\", \"*.js\", \"*.css\")"
+    ]
+  }
+}
