@@ -33,14 +33,14 @@ const LEVEL_TUTORIALS = {
     ],
   },
   3: {
-    title: 'Niveau 3 — Robot glissant',
+    title: 'Niveau 3 — LiDAR + Dérive',
     icon:  '⚠️',
-    desc:  "Le robot dérape et accumule de la dérive à chaque mouvement. Deux nouveaux blocs permettent de recalibrer :",
+    desc:  "Niveau expert : l'arène est cachée comme au niveau 2 (LiDAR uniquement) ET le robot dérape à chaque mouvement. Deux blocs supplémentaires permettent de recalibrer la dérive :",
     newBlocks: [
       { icon: '🧭', name: 'Corriger cap (°)',  desc: 'Réoriente le robot vers un angle précis — annule la dérive angulaire accumulée.' },
       { icon: '⚖️', name: 'Réduire dérive',   desc: 'Réduit progressivement la dérive latérale. À utiliser régulièrement dans une boucle.' },
     ],
-    warning: '⚠️ Important : la dérive n\'annule PAS les arrêts obstacle. Un "Stop si obstacle" fonctionne toujours correctement même avec dérive.',
+    warning: '⚠️ Double défi : programme à l\'aveugle avec le LiDAR, et compense la dérive avec les blocs de correction. La dérive n\'annule pas les arrêts obstacle.',
   },
 };
 

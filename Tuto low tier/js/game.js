@@ -22,10 +22,10 @@ function initGame(level) {
   fogCanvas.width  = gCanvas.width;  fogCanvas.height = gCanvas.height;
   fogCanvas.style.width  = gCanvas.style.width;
   fogCanvas.style.height = gCanvas.style.height;
-  fogCanvas.style.display = level === 2 ? 'block' : 'none';
+  fogCanvas.style.display = level >= 2 ? 'block' : 'none';
 
-  lidarCanvas.style.display = level === 2 ? 'block' : 'none';
-  if (level === 2) {
+  lidarCanvas.style.display = level >= 2 ? 'block' : 'none';
+  if (level >= 2) {
     lidarCanvas.width  = 120; lidarCanvas.height = 120;
     lidarCanvas.style.width = '120px'; lidarCanvas.style.height = '120px';
   }
@@ -35,12 +35,12 @@ function initGame(level) {
   const titles = {
     1:'NIVEAU 1 <em>· Vue complète</em>',
     2:'NIVEAU 2 <em>· Mode LiDAR</em>',
-    3:'NIVEAU 3 <em>· Robot glissant</em>',
+    3:'NIVEAU 3 <em>· LiDAR + Dérive</em>',
   };
   const tips = {
     1:'Programme le robot pour collecter les ⭐ sans toucher les murs',
     2:'Tu ne vois que le LiDAR — programme à l\'aveugle !',
-    3:'Le robot glisse et dérive — utilise les blocs de correction',
+    3:'Arène cachée + robot glissant — LiDAR seul et blocs de correction',
   };
   document.getElementById('levelTitle').innerHTML = titles[level];
   document.getElementById('levelTip').textContent = tips[level];
@@ -62,7 +62,7 @@ function initGame(level) {
 
   buildPalette(level);
   clearScript();
-  if (level === 2) initFog();
+  if (level >= 2) initFog();
   updateHUD();
   updateLivesHud();
   drawGame();
@@ -190,9 +190,9 @@ function drawGame() {
   gCtx.strokeRect((mapData.spawn.col+.05)*CELL,(mapData.spawn.row+.05)*CELL,CELL*.9,CELL*.9);
   gCtx.setLineDash([]);
 
-  if (currentLevel === 2) drawLidar();
+  if (currentLevel >= 2) drawLidar();
   drawRobot(bot.x, bot.y, bot.a);
-  if (currentLevel === 2) { drawFog(); drawLidarMap(); }
+  if (currentLevel >= 2) { drawFog(); drawLidarMap(); }
 }
 
 function drawRobot(x, y, a) {

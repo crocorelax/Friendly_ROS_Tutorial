@@ -76,7 +76,7 @@ function buildPalette(level) {
   const hint = document.createElement('div');
   hint.className = 'pal-hint';
   hint.innerHTML = level >= 3
-    ? '<b style="color:#fbbf24">⚠️ Expert</b><br>Robot glissant !<br>Blocs dérive pour<br>recalibrer.'
+    ? '<b style="color:#fbbf24">⚠️ Expert</b><br>Arène cachée +<br>robot glissant !<br>LiDAR + dérive.'
     : level >= 2
     ? '📡 <b style="color:#00d68f">LiDAR</b><br>Survole un bloc<br>pour voir sa<br>description.'
     : '💡 Glisse les blocs<br>↕ Réordonne<br>▶ Lancer';
