@@ -4,7 +4,15 @@
       "Bash(Get-ChildItem -Recurse -Path \"C:\\\\Users\\\\lacostea\\\\OneDrive - GROUPE 3IL\\\\Documents\\\\GitHub\\\\Friendly_ROS_Tutorial\")",
       "Bash(Select-Object FullName)",
       "Bash(Sort-Object FullName)",
-      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\lacostea\\\\OneDrive - GROUPE 3IL\\\\Documents\\\\GitHub\\\\Friendly_ROS_Tutorial\" -Recurse -Include \"*.html\", \"*.js\", \"*.css\")"
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\lacostea\\\\OneDrive - GROUPE 3IL\\\\Documents\\\\GitHub\\\\Friendly_ROS_Tutorial\" -Recurse -Include \"*.html\", \"*.js\", \"*.css\")",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\lacos\\\\Documents\\\\GitHub\\\\Friendly_ROS_Tutorial\" -Recurse)",
+      "Bash(Select-Object -Property FullName)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\lacos\\\\Documents\\\\GitHub\\\\Friendly_ROS_Tutorial\" -Recurse -Filter \"*.html\")",
+      "Bash(Select-Object FullName, LastWriteTime)",
+      "Bash(Sort-Object LastWriteTime -Descending)",
+      "PowerShell(Get-ChildItem -Recurse \"C:\\\\Users\\\\lacos\\\\Documents\\\\GitHub\\\\Friendly_ROS_Tutorial\" | Where-Object { $_.Extension -eq \".html\" } | Format-Table Name, FullName, LastWriteTime)",
+      "PowerShell(New-Item -ItemType Directory -Force -Path \"C:\\\\Users\\\\lacos\\\\Documents\\\\GitHub\\\\Friendly_ROS_Tutorial\\\\Robot Dashboard\\\\css\")",
+      "PowerShell(New-Item -ItemType Directory -Force -Path \"C:\\\\Users\\\\lacos\\\\Documents\\\\GitHub\\\\Friendly_ROS_Tutorial\\\\Robot Dashboard\\\\js\")"
     ]
   }
 }

@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>BipBoup · Robot Live Dashboard</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- Garde de session -->
+<script>
+(function(){
+  try{var s=JSON.parse(localStorage.getItem('bipboup_session'));if(!s||!s.username)throw 0;}
+  catch(e){window.location.replace('../index.html');}
+})();
+</script>
+
+<div class="app">
+
+  <!-- TITLEBAR -->
+  <div class="titlebar">
+    <div class="tb-dots">
+      <div class="tb-dot" style="background:#ef4444"></div>
+      <div class="tb-dot" style="background:#eab308"></div>
+      <div class="tb-dot" style="background:#22c55e"></div>
+    </div>
+    <button class="tb-back" onclick="window.location.href='../index.html'">← Menu</button>
+    <div class="tb-title">BipBoup · Robot Live Dashboard — Club 3iL</div>
+    <div class="tb-conn">
+      <div class="conn-dot" id="connDot" style="background:var(--muted);animation:none"></div>
+      <span id="connLabel" style="font-size:10px;color:var(--muted)">Déconnecté</span>
+    </div>
+  </div>
+
+  <!-- CONNECTION BAR -->
+  <div class="connbar">
+    <span style="font-size:10px;color:var(--muted)">rosbridge ws://</span>
+    <input class="conn-input" id="wsUrl" value="localhost:9090" placeholder="192.168.x.x:9090">
+    <button class="conn-btn btn-connect"    id="btnConnect"    onclick="toggleConnect()">⚡ Connecter</button>
+    <button class="conn-btn btn-disconnect" id="btnDisconnect" onclick="toggleConnect()">✕ Déconnecter</button>
+    <div class="conn-status status-disconnected" id="connStatus">DÉCONNECTÉ</div>
+    <div class="conn-info" id="connInfo">Entrez l'IP du robot puis connectez</div>
+    <div class="freq-badge" id="freqBadge">— Hz</div>
+  </div>
+
+  <!-- WORKSPACE -->
+  <div class="workspace">
+
+    <!-- ① LiDAR (haut-gauche) -->
+    <div class="panel">
+      <div class="panel-head">
+        <span class="ph-icon">📡</span>
+        <span class="ph-title">LiDAR — /scan</span>
+        <div class="ph-help">?
+          <div class="tooltip"><b>LiDAR (Light Detection And Ranging)</b><br>Le robot envoie des faisceaux laser dans toutes les directions et mesure le temps de retour. Chaque point = un obstacle détecté.<br><br><b>Topic ROS:</b> /scan (sensor_msgs/LaserScan)<br><b>Fréquence:</b> ~10 Hz</div>
+        </div>
+        <span class="ph-badge offline" id="lidarBadge">OFFLINE</span>
+      </div>
+      <canvas id="lidarCanvas"></canvas>
+      <div class="lidar-controls">
+        <span class="lc-label">Portée:</span>
+        <input type="range" class="range-slider" id="lidarRange" min="2" max="12" value="6" oninput="updateLidarRange()">
+        <span class="lc-val" id="lidarRangeVal">6m</span>
+        <span class="lc-label" style="margin-left:8px">Points:</span>
+        <span class="lc-val" id="lidarPoints">—</span>
+        <span class="lc-label" style="margin-left:8px">Min:</span>
+        <span class="lc-val" id="lidarMin">—</span>
+      </div>
+    </div>
+
+    <!-- ② Caméra (haut-centre) -->
+    <div class="panel" style="position:relative">
+      <div class="panel-head">
+        <span class="ph-icon">📷</span>
+        <span class="ph-title">Caméra — /camera/image_raw</span>
+        <div class="ph-help">?
+          <div class="tooltip"><b>Caméra embarquée</b><br>Flux vidéo en temps réel. En mode connecté, nécessite web_video_server sur le robot (port 8080).<br><br><b>Topic ROS:</b> /camera/image_raw<br><b>Format:</b> MJPEG via web_video_server</div>
+        </div>
+        <span class="ph-badge offline" id="camBadge" style="margin-left:auto">OFFLINE</span>
+      </div>
+      <canvas id="cameraCanvas"></canvas>
+      <div class="cam-overlay" id="camOverlay" style="display:none">
+        <span class="cam-tag" id="camFps">— fps</span>
+        <span class="cam-tag" id="camRes">640×480</span>
+        <span class="cam-tag" id="camLatency">— ms</span>
+      </div>
+      <div class="cam-controls">
+        <span style="font-size:9px;color:var(--muted)">Filtre:</span>
+        <button class="cam-btn active" id="camNormal" onclick="setCamFilter('normal')">Normal</button>
+        <button class="cam-btn"        id="camGray"   onclick="setCamFilter('gray')">Gris</button>
+        <button class="cam-btn"        id="camEdge"   onclick="setCamFilter('edge')">Contours</button>
+        <button class="cam-btn"        id="camDepth"  onclick="setCamFilter('depth')">Depth</button>
+        <span style="font-size:9px;color:var(--muted);margin-left:auto">web_video_server:8080</span>
+      </div>
+    </div>
+
+    <!-- ③ Odom trail (haut-droite) -->
+    <div class="panel">
+      <div class="panel-head">
+        <span class="ph-icon">🗺</span>
+        <span class="ph-title">Odométrie — /odom</span>
+        <div class="ph-help">?
+          <div class="tooltip"><b>Odométrie</b><br>Position estimée à partir des encodeurs de roues. Accumule une erreur (drift) — d'où l'utilisation du LiDAR pour corriger.<br><br><b>Topic ROS:</b> /odom (nav_msgs/Odometry)<br><b>Fréquence:</b> ~50 Hz</div>
+        </div>
+        <span class="ph-badge offline" id="odomBadge">OFFLINE</span>
+      </div>
+      <canvas id="odomTrailCanvas"></canvas>
+      <div class="odom-expl" id="odomExpl">
+        <b>Odométrie</b> = position estimée par les roues.<br>
+        La trace montre le chemin parcouru.<br>
+        Le drift (dérive) s'accumule sans correction.
+      </div>
+    </div>
+
+    <!-- ④ IMU (bas-gauche) -->
+    <div class="panel">
+      <div class="panel-head">
+        <span class="ph-icon">🌀</span>
+        <span class="ph-title">IMU — /imu/data</span>
+        <div class="ph-help">?
+          <div class="tooltip"><b>IMU (Inertial Measurement Unit)</b><br>Mesure les accélérations et rotations sur 3 axes. Gyroscope = vitesse angulaire, Accéléromètre = forces.<br><br><b>Topic ROS:</b> /imu/data (sensor_msgs/Imu)<br><b>Fréquence:</b> ~100 Hz</div>
+        </div>
+        <span class="ph-badge offline" id="imuBadge">OFFLINE</span>
+      </div>
+      <div class="gyro-body">
+        <canvas id="gyroCanvas" width="110" height="110"></canvas>
+        <div class="gyro-vals">
+          <div class="gyro-val">
+            <div class="gv-axis" style="color:#ef4444">ROLL X</div>
+            <div class="gv-num" style="color:#ef4444" id="gvX">0.0</div>
+            <div class="gv-unit">°/s</div>
+          </div>
+          <div class="gyro-val">
+            <div class="gv-axis" style="color:#22c55e">PITCH Y</div>
+            <div class="gv-num" style="color:#22c55e" id="gvY">0.0</div>
+            <div class="gv-unit">°/s</div>
+          </div>
+          <div class="gyro-val">
+            <div class="gv-axis" style="color:#38bdf8">YAW Z</div>
+            <div class="gv-num" style="color:#38bdf8" id="gvZ">0.0</div>
+            <div class="gv-unit">°/s</div>
+          </div>
+        </div>
+        <div class="gyro-bar-wrap">
+          <div class="gyro-bar-label"><span style="color:#ef4444">Accél X</span><span id="accelXVal">0.00 m/s²</span></div>
+          <div class="gyro-bar-bg"><div class="gyro-bar-fill" id="accelXBar" style="background:#ef4444;width:50%"></div></div>
+        </div>
+        <div class="gyro-bar-wrap">
+          <div class="gyro-bar-label"><span style="color:#22c55e">Accél Y</span><span id="accelYVal">0.00 m/s²</span></div>
+          <div class="gyro-bar-bg"><div class="gyro-bar-fill" id="accelYBar" style="background:#22c55e;width:50%"></div></div>
+        </div>
+        <div class="gyro-bar-wrap">
+          <div class="gyro-bar-label"><span style="color:#38bdf8">Accél Z</span><span id="accelZVal">9.81 m/s²</span></div>
+          <div class="gyro-bar-bg"><div class="gyro-bar-fill" id="accelZBar" style="background:#38bdf8;width:50%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⑤ État robot (bas-centre) -->
+    <div class="panel">
+      <div class="panel-head">
+        <span class="ph-icon">🤖</span>
+        <span class="ph-title">État Robot — /diagnostics</span>
+        <div class="ph-help">?
+          <div class="tooltip"><b>Diagnostics robot</b><br>Position, vitesse, cap et batterie fusionnés depuis plusieurs topics. Le <b>cap</b> = angle de direction. La <b>batterie</b> = tension LiPo.</div>
+        </div>
+        <span class="ph-badge offline" id="diagBadge">OFFLINE</span>
+      </div>
+      <div class="odom-body">
+        <div class="odom-grid">
+          <div class="odom-card">
+            <div class="oc-label">Position X</div>
+            <div class="oc-val" id="posX" style="color:var(--blue)">—</div>
+            <div class="oc-unit">mètres</div>
+            <div class="oc-bar"><div class="oc-bar-fill" id="posXBar" style="background:var(--blue);width:0%"></div></div>
+          </div>
+          <div class="odom-card">
+            <div class="oc-label">Position Y</div>
+            <div class="oc-val" id="posY" style="color:var(--blue)">—</div>
+            <div class="oc-unit">mètres</div>
+            <div class="oc-bar"><div class="oc-bar-fill" id="posYBar" style="background:var(--blue);width:0%"></div></div>
+          </div>
+          <div class="odom-card">
+            <div class="oc-label">Cap (Yaw)</div>
+            <div class="oc-val" id="posYaw" style="color:var(--purple)">—</div>
+            <div class="oc-unit">degrés</div>
+            <div class="oc-bar"><div class="oc-bar-fill" id="posYawBar" style="background:var(--purple);width:0%"></div></div>
+          </div>
+          <div class="odom-card">
+            <div class="oc-label">Vitesse linéaire</div>
+            <div class="oc-val" id="velLin" style="color:var(--green)">—</div>
+            <div class="oc-unit">m/s</div>
+            <div class="oc-bar"><div class="oc-bar-fill" id="velLinBar" style="background:var(--green);width:0%"></div></div>
+          </div>
+          <div class="odom-card">
+            <div class="oc-label">Vit. angulaire</div>
+            <div class="oc-val" id="velAng" style="color:var(--orange)">—</div>
+            <div class="oc-unit">rad/s</div>
+            <div class="oc-bar"><div class="oc-bar-fill" id="velAngBar" style="background:var(--orange);width:0%"></div></div>
+          </div>
+          <div class="odom-card">
+            <div class="oc-label">Batterie</div>
+            <div class="oc-val" id="batVal" style="color:var(--green)">—</div>
+            <div class="oc-unit">%</div>
+            <div class="oc-bar"><div class="oc-bar-fill" id="batBar" style="background:var(--green);width:0%"></div></div>
+          </div>
+        </div>
+        <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+          <canvas id="compassCanvas" width="70" height="70"></canvas>
+          <div style="flex:1;font-size:10px;color:var(--muted);line-height:1.7;font-family:'Nunito',sans-serif;font-weight:600">
+            <b style="color:var(--text)">Cap actuel:</b> <span id="compassDeg" style="color:var(--purple)">—°</span><br>
+            <b style="color:var(--text)">Distance parcourue:</b> <span id="totalDist" style="color:var(--green)">0.0 m</span><br>
+            <b style="color:var(--text)">Uptime:</b> <span id="uptime" style="color:var(--cyan)">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⑥ Système & Topics (bas-droite) -->
+    <div class="panel">
+      <div class="panel-head">
+        <span class="ph-icon">⚙</span>
+        <span class="ph-title">Système & Topics ROS</span>
+        <div class="ph-help">?
+          <div class="tooltip"><b>Topics ROS</b><br>Un topic est un canal de communication entre les nodes. Les données y sont publiées en continu. Ici on liste les topics actifs avec fréquence et dernière valeur.</div>
+        </div>
+        <span class="ph-badge offline" id="sysBadge">OFFLINE</span>
+      </div>
+      <div class="sys-body">
+        <div class="sys-row">
+          <span class="sys-icon">🔋</span>
+          <span class="sys-label">Batterie</span>
+          <span class="sys-val" id="sysBat" style="color:var(--green)">—%</span>
+          <div class="sys-bar"><div class="sys-bar-fill" id="sysBatBar" style="background:var(--green);width:0%"></div></div>
+        </div>
+        <div class="sys-row">
+          <span class="sys-icon">🖥</span>
+          <span class="sys-label">CPU (Raspberry Pi 4)</span>
+          <span class="sys-val" id="sysCpu" style="color:var(--text)">—%</span>
+          <div class="sys-bar"><div class="sys-bar-fill" id="sysCpuBar" style="background:var(--blue);width:0%"></div></div>
+        </div>
+        <div class="sys-row">
+          <span class="sys-icon">🌡</span>
+          <span class="sys-label">Température CPU</span>
+          <span class="sys-val" id="sysTemp" style="color:var(--text)">—°C</span>
+          <div class="sys-bar"><div class="sys-bar-fill" id="sysTempBar" style="background:var(--orange);width:0%"></div></div>
+        </div>
+        <div class="sys-row">
+          <span class="sys-icon">📶</span>
+          <span class="sys-label">Signal WiFi</span>
+          <span class="sys-val" id="sysWifi" style="color:var(--text)">— dBm</span>
+          <div class="sys-bar"><div class="sys-bar-fill" id="sysWifiBar" style="background:var(--cyan);width:0%"></div></div>
+        </div>
+        <div class="sys-row">
+          <span class="sys-icon">⏱</span>
+          <span class="sys-label">Latence réseau</span>
+          <span class="sys-val" id="sysLatency" style="color:var(--text)">— ms</span>
+          <div class="sys-bar"><div class="sys-bar-fill" id="sysLatencyBar" style="background:var(--purple);width:0%"></div></div>
+        </div>
+        <div class="sys-topic">TOPICS ACTIFS</div>
+        <div id="topicsList"></div>
+      </div>
+    </div>
+
+  </div><!-- .workspace -->
+
+  <!-- EXPLICATION BAS DE PAGE -->
+  <div class="expl-strip">
+    <span class="expl-label">💡 INFO</span>
+    <span class="expl-text" id="explText">Entrez l'IP du robot et connectez via rosbridge WebSocket pour voir les données en direct.</span>
+  </div>
+
+</div><!-- .app -->
+
+<div class="notif" id="notif"></div>
+
+<script src="js/state.js"></script>
+<script src="js/rosbridge.js"></script>
+<script src="js/sim.js"></script>
+<script src="js/draw.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

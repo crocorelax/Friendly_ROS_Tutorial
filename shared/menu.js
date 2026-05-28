@@ -180,6 +180,10 @@ function goToTier(tier) {
   window.location.href = path;
 }
 
+function goToDashboard() {
+  window.location.href = 'Robot Dashboard/index.html';
+}
+
 // ── Panel Admin ─────────────────────────────────────────
 
 function openAdminPanel() {
