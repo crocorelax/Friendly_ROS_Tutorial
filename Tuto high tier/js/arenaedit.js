@@ -3,7 +3,6 @@
 // Les modifications sont appliquées directement à state.js et sauvegardables.
 
 const _AE_SCALE  = 2.4;           // canvas pixels par unité arène
-const _AE_STORE  = 'bipboup_arenas';
 
 // ── État interne ──────────────────────────────────────────
 let _aeWalls    = [];   // copies de WALLS en cours d'édition
@@ -14,10 +13,8 @@ let _aeSel      = null;            // { kind:'wall'|'goal'|'spawn', idx }
 let _aeDrag     = false;
 let _aeDragOx   = 0; let _aeDragOy = 0;
 let _aeCanvas   = null; let _aeCtx = null;
-
-// ── Storage local ─────────────────────────────────────────
-function _aeGetArenas()   { try { return JSON.parse(localStorage.getItem(_AE_STORE)) || []; } catch { return []; } }
-function _aeSetArenas(v)  { localStorage.setItem(_AE_STORE, JSON.stringify(v)); }
+let _aeMaps     = [];   // cache des arènes Supabase (admin editor)
+let _asSelectorMaps = []; // cache du sélecteur utilisateur
 
 // ── Ouverture / Fermeture ─────────────────────────────────
 function openArenaEditor() {
@@ -32,7 +29,7 @@ function openArenaEditor() {
   _aeInitCanvas();
   _aeRender();
   _aeRefreshProps();
-  _aeRefreshSavedList();
+  _aeRefreshSavedList(); // async, fire-and-forget
 }
 
 function closeArenaEditor() {
@@ -258,14 +255,13 @@ function _aeSetToolBtn(t) {
   document.getElementById(map[t])?.classList.add('ae-active');
 }
 
-// ── Appliquer à l'arène live ──────────────────────────────
-function aeApply() {
-  // Mute les arrays const de state.js
-  WALLS.splice(0, WALLS.length, ..._aeWalls.map(w => ({ ...w })));
-  GOALS.splice(0, GOALS.length, ..._aeGoals.map(g => ({ ...g, done: false })));
-  S.x = _aeSpawn.x; S.y = _aeSpawn.y;
-  S.vx = 0; S.vy = 0;
-  // Remet le match à zéro si en cours
+// ── Appliquer à l'arène live (accessible à tous) ─────────
+// Appelé par l'admin (aeApply) et par le sélecteur utilisateur (_asApply).
+function applyArenaData(data) {
+  WALLS.splice(0, WALLS.length, ...(data.walls || []).map(w => ({ ...w })));
+  GOALS.splice(0, GOALS.length, ...(data.goals || []).map(g => ({ ...g, done: false })));
+  const sp = data.spawn || { x: 30, y: 100 };
+  S.x = sp.x; S.y = sp.y; S.vx = 0; S.vy = 0;
   if (S.matchRunning) {
     S.matchRunning = false; S.matchTime = 100; S.score = 0;
     termLog('[arena] Arène modifiée — match réinitialisé', 'warn');
@@ -273,56 +269,101 @@ function aeApply() {
   MISSION_TASKS.forEach(t => t.done = false);
   termLog(`[arena] Arène appliquée : ${WALLS.length} murs, ${GOALS.length} objectifs`, 'info');
   rebuildArenaStatic();
+}
+
+function aeApply() {
+  applyArenaData({ walls: _aeWalls, goals: _aeGoals, spawn: _aeSpawn });
   closeArenaEditor();
 }
 
-// ── Sauvegarde / Chargement ───────────────────────────────
-function aeSave() {
+// ── Sauvegarde / Chargement (Supabase) ───────────────────
+
+async function aeSave() {
   const name = prompt('Nom de cette configuration d\'arène :');
   if (!name || !name.trim()) return;
-  const arenas = _aeGetArenas();
-  const idx    = arenas.findIndex(a => a.name === name.trim());
-  const entry  = {
-    id:        idx >= 0 ? arenas[idx].id : Date.now().toString(36),
-    name:      name.trim(),
-    createdAt: idx >= 0 ? arenas[idx].createdAt : new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    walls:     _aeWalls.map(w => ({ ...w })),
-    goals:     _aeGoals.map(g => ({ ...g })),
-    spawn:     { ..._aeSpawn },
+  const arenaData = {
+    walls: _aeWalls.map(w => ({ ...w })),
+    goals: _aeGoals.map(g => ({ ...g })),
+    spawn: { ..._aeSpawn },
   };
-  if (idx >= 0) arenas[idx] = entry; else arenas.push(entry);
-  _aeSetArenas(arenas);
+  const entry = await Persistence.saveArena(name.trim(), arenaData);
+  if (!entry) { termLog('[arena] Erreur de sauvegarde — réessaie', 'error'); return; }
   termLog(`[arena] Configuration "${name.trim()}" sauvegardée`, 'info');
-  _aeRefreshSavedList();
+  await _aeRefreshSavedList();
 }
 
 function _aeLoad(id) {
-  const arena = _aeGetArenas().find(a => a.id === id);
-  if (!arena) return;
-  _aeWalls  = arena.walls.map(w => ({ ...w }));
-  _aeGoals  = arena.goals.map(g => ({ ...g, done: false }));
-  _aeSpawn  = { ...arena.spawn };
-  _aeSel    = null; _aeRefreshProps(); _aeRender();
-  termLog(`[arena] Configuration "${arena.name}" chargée dans l'éditeur`, 'info');
+  const m = _aeMaps.find(x => x.id === id);
+  if (!m || !m.data) return;
+  _aeWalls = (m.data.walls || []).map(w => ({ ...w }));
+  _aeGoals = (m.data.goals || []).map(g => ({ ...g, done: false }));
+  _aeSpawn = { ...(m.data.spawn || { x: 30, y: 100 }) };
+  _aeSel   = null; _aeRefreshProps(); _aeRender();
+  termLog(`[arena] Configuration "${m.name}" chargée dans l'éditeur`, 'info');
 }
 
-function _aeDelete(id) {
+async function _aeDeleteMap(id) {
   if (!confirm('Supprimer cette configuration ?')) return;
-  _aeSetArenas(_aeGetArenas().filter(a => a.id !== id));
-  _aeRefreshSavedList();
+  await Persistence.deleteMap(id);
+  await _aeRefreshSavedList();
 }
 
-function _aeRefreshSavedList() {
-  const el     = document.getElementById('aeSavedList');
-  const arenas = _aeGetArenas();
-  if (!arenas.length) { el.innerHTML = '<div style="font-size:10px;color:var(--muted)">Aucune config sauvegardée.</div>'; return; }
-  el.innerHTML = arenas.map(a => `
+async function _aeRefreshSavedList() {
+  const el = document.getElementById('aeSavedList');
+  el.innerHTML = '<div style="font-size:10px;color:var(--muted)">Chargement…</div>';
+  try { _aeMaps = await Persistence.getAllArenas(); }
+  catch (e) { el.innerHTML = '<div style="font-size:10px;color:var(--red)">Erreur réseau</div>'; return; }
+
+  if (!_aeMaps.length) {
+    el.innerHTML = '<div style="font-size:10px;color:var(--muted)">Aucune config sauvegardée.</div>';
+    return;
+  }
+  el.innerHTML = _aeMaps.map(m => `
     <div class="ae-saved-item">
-      <span class="ae-saved-name">${a.name}</span>
-      <button class="ae-saved-btn" onclick="_aeLoad('${a.id}')">Charger</button>
-      <button class="ae-saved-btn ae-saved-del" onclick="_aeDelete('${a.id}')">✕</button>
+      <span class="ae-saved-name">${m.name}</span>
+      <button class="ae-saved-btn" onclick="_aeLoad('${m.id}')">Charger</button>
+      <button class="ae-saved-btn ae-saved-del" onclick="_aeDeleteMap('${m.id}')">✕</button>
     </div>`).join('');
+}
+
+// ── Sélecteur arène — utilisateurs non-admin ──────────────
+
+async function openArenaSelector() {
+  document.getElementById('aeSelectorModal').style.display = 'flex';
+  const listEl = document.getElementById('aeSelectorList');
+  listEl.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:24px">Chargement…</div>';
+  try { _asSelectorMaps = await Persistence.getAllArenas(); }
+  catch (e) {
+    listEl.innerHTML = '<div style="color:var(--red);font-size:12px;text-align:center;padding:24px">Erreur réseau — réessaie.</div>';
+    return;
+  }
+  if (!_asSelectorMaps.length) {
+    listEl.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:24px">Aucune arène disponible — l\'administrateur n\'en a pas encore créé.</div>';
+    return;
+  }
+  listEl.innerHTML = _asSelectorMaps.map(m => `
+    <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px">
+      <span style="font-size:18px">🗺</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:12px;color:var(--text)">${m.name}</div>
+        <div style="font-size:10px;color:var(--muted)">${new Date(m.updated_at || m.created_at).toLocaleDateString('fr')}</div>
+      </div>
+      <button onclick="_asApply('${m.id}')"
+        style="background:var(--green);color:#000;border:none;border-radius:4px;padding:5px 12px;font-size:11px;font-weight:900;cursor:pointer;font-family:var(--mono)">
+        ✅ Charger
+      </button>
+    </div>`).join('');
+}
+
+function closeArenaSelector() {
+  document.getElementById('aeSelectorModal').style.display = 'none';
+}
+
+function _asApply(id) {
+  const m = _asSelectorMaps.find(x => x.id === id);
+  if (!m || !m.data) return;
+  applyArenaData(m.data);
+  closeArenaSelector();
 }
 
 // ── Cartes ville prédéfinies ─────────────────────────────

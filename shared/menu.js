@@ -282,20 +282,19 @@ async function _renderAdminPanel() {
 }
 
 async function adminResetLives(username) {
-  await Auth.restoreLives(username, 3);
+  await supabase.rpc('fn_admin_restore_lives', { p_username: username, p_lives: 3 });
   _renderAdminPanel();
 }
 
 async function adminRestoreAllLives() {
   if (!confirm('Redonner 3 vies à tous les joueurs ?')) return;
-  await supabase.from('profiles').update({ lives: 3 }).eq('role', 'player');
+  await supabase.rpc('fn_admin_restore_all_lives', { p_lives: 3 });
   _renderAdminPanel();
 }
 
 async function adminResetScore(username, tier) {
   if (!confirm(`Remettre le score ${tier.toUpperCase()} de ${username} à 0 ?`)) return;
-  const col = tier === 'low' ? 'score_low' : 'score_high';
-  await supabase.from('profiles').update({ [col]: 0 }).eq('username', username.toLowerCase());
+  await supabase.rpc('fn_admin_reset_score', { p_username: username, p_tier: tier });
   _renderAdminPanel();
   renderLeaderboard(_currentTab);
 }
@@ -317,7 +316,7 @@ async function adminDeleteUser(username) {
 
 async function adminResetAllScores() {
   if (!confirm('Remettre TOUS les scores à 0 ?')) return;
-  await supabase.from('profiles').update({ score_low: 0, score_high: 0 }).eq('role', 'player');
+  await supabase.rpc('fn_admin_reset_all_scores');
   _renderAdminPanel();
   renderLeaderboard(_currentTab);
 }

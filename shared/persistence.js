@@ -15,6 +15,8 @@ const Persistence = (() => {
 
   // ══ MAPS ══════════════════════════════════════════════════
 
+  // ── Low tier : maps grille (col/row) ──────────────────────
+
   async function saveMap(name, rawMapData) {
     const sess = await _sess();
     if (!sess) return null;
@@ -25,17 +27,18 @@ const Persistence = (() => {
       spawn: { col: rawMapData.spawn.col, row: rawMapData.spawn.row },
     };
 
-    // Vérifie si une map du même nom existe déjà pour cet utilisateur
     const { data: existing } = await supabase
       .from('maps')
       .select('id, created_at')
       .eq('user_id', sess.user.id)
       .eq('name', name.trim())
+      .eq('tier', 'low')
       .maybeSingle();
 
     const entry = {
       id:         existing?.id || _uid(),
       name:       name.trim(),
+      tier:       'low',
       user_id:    sess.user.id,
       username:   _uname(),
       data:       payload,
@@ -57,6 +60,7 @@ const Persistence = (() => {
       .from('maps')
       .select('*')
       .eq('user_id', sess.user.id)
+      .eq('tier', 'low')
       .order('updated_at', { ascending: false });
     return data || [];
   }
@@ -65,12 +69,55 @@ const Persistence = (() => {
     const { data } = await supabase
       .from('maps')
       .select('*')
+      .eq('tier', 'low')
       .order('updated_at', { ascending: false });
     return data || [];
   }
 
   async function deleteMap(id) {
     await supabase.from('maps').delete().eq('id', id);
+  }
+
+  // ── High tier : arènes pixel (x/y) ────────────────────────
+  // Les arènes stockent les données brutes sans transformation.
+
+  async function saveArena(name, arenaData) {
+    const sess = await _sess();
+    if (!sess) return null;
+
+    const { data: existing } = await supabase
+      .from('maps')
+      .select('id, created_at')
+      .eq('user_id', sess.user.id)
+      .eq('name', name.trim())
+      .eq('tier', 'high')
+      .maybeSingle();
+
+    const entry = {
+      id:         existing?.id || _uid(),
+      name:       name.trim(),
+      tier:       'high',
+      user_id:    sess.user.id,
+      username:   _uname(),
+      data:       arenaData,   // { walls, goals, spawn } en coordonnées pixel
+      updated_at: new Date().toISOString(),
+      ...(existing ? {} : { created_at: new Date().toISOString() }),
+    };
+
+    const { error } = existing
+      ? await supabase.from('maps').update(entry).eq('id', existing.id)
+      : await supabase.from('maps').insert(entry);
+
+    return error ? null : entry;
+  }
+
+  async function getAllArenas() {
+    const { data } = await supabase
+      .from('maps')
+      .select('*')
+      .eq('tier', 'high')
+      .order('updated_at', { ascending: false });
+    return data || [];
   }
 
   // ══ SCRIPTS LOW TIER (blocs) ═══════════════════════════════
@@ -160,6 +207,7 @@ const Persistence = (() => {
 
   return {
     saveMap, getUserMaps, getAllMaps, deleteMap,
+    saveArena, getAllArenas,
     saveScript, getUserScripts, getAllScripts, deleteScript,
     saveHighScript,
   };

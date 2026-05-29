@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>BipBoup · Tests Sécurité RLS</title>
+<style>
+:root {
+  --bg:#0f1117; --bg2:#111827; --surface:#1a2235; --surface2:#1e293b;
+  --border:#1e293b; --border2:#2d3f55; --text:#e2e8f0; --muted:#64748b;
+  --green:#22c55e; --red:#ef4444; --yellow:#eab308; --blue:#38bdf8;
+  --orange:#f97316; --purple:#a855f7; --mono:'JetBrains Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13px;min-height:100vh}
+a{color:var(--blue)}
+
+.hdr{background:var(--bg2);border-bottom:1px solid var(--border);padding:13px 24px;display:flex;align-items:center;gap:14px}
+.hdr-title{font-size:15px;font-weight:900;color:var(--green)}
+.hdr-sub{font-size:10px;color:var(--muted)}
+
+.wrap{max-width:900px;margin:0 auto;padding:22px 24px}
+
+.warn{background:rgba(234,179,8,.07);border:1px solid rgba(234,179,8,.3);border-radius:8px;
+      padding:11px 16px;font-size:11px;color:var(--yellow);line-height:1.7;margin-bottom:18px}
+
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 20px;margin-bottom:18px}
+.card-title{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.section-label{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px}
+.label-admin{color:var(--orange)}
+.label-player{color:var(--blue)}
+
+.fg{margin-bottom:8px}
+.fg label{display:block;font-size:10px;color:var(--muted);margin-bottom:3px;letter-spacing:.5px}
+.fg input{width:100%;background:var(--surface2);border:1px solid var(--border2);color:var(--text);
+           border-radius:5px;padding:7px 10px;font-family:var(--mono);font-size:12px;outline:none}
+.fg input:focus{border-color:var(--green)}
+
+.btn-run{background:var(--green);color:#000;border:none;border-radius:6px;padding:9px 22px;
+         font-family:var(--mono);font-size:12px;font-weight:900;cursor:pointer;width:100%;
+         margin-top:4px;letter-spacing:.5px}
+.btn-run:hover{opacity:.85} .btn-run:disabled{opacity:.35;cursor:not-allowed}
+
+.progress{font-size:11px;color:var(--muted);margin-top:8px;min-height:16px;line-height:1.4}
+
+/* Results */
+.results-hdr{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.badge{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px}
+.b-pass{background:rgba(34,197,94,.12);color:var(--green);border:1px solid rgba(34,197,94,.25)}
+.b-fail{background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.25)}
+.b-skip{background:rgba(100,116,139,.12);color:var(--muted);border:1px solid rgba(100,116,139,.25)}
+
+.test-group{margin-bottom:14px}
+.group-title{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+             color:var(--blue);padding:7px 0 5px;border-bottom:1px solid var(--border);margin-bottom:4px}
+
+.row{display:flex;align-items:baseline;gap:8px;padding:5px 7px;border-radius:4px;transition:background .1s}
+.row:hover{background:var(--surface)}
+.row .ico{font-size:12px;flex-shrink:0;width:16px;text-align:center}
+.row .rname{flex:1;line-height:1.4}
+.row .note{font-size:10px;color:var(--muted);font-style:italic}
+.row.r-pass .rname{color:var(--text)}
+.row.r-fail .rname{color:var(--red);font-weight:700}
+.row.r-skip .rname{color:var(--muted)}
+.row .reason{font-size:10px;color:var(--red);margin-left:4px}
+
+/* Summary bar */
+.sum-bar{display:flex;gap:12px;padding:12px 14px;background:var(--surface);
+          border-radius:7px;margin-top:14px;align-items:center}
+.sum-bar .sum-label{font-size:11px;color:var(--muted)}
+.sum-bar .sum-val{font-size:15px;font-weight:900}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="hdr-title">🔐 BipBoup — Tests de Sécurité RLS</div>
+  <div class="hdr-sub">Vérifie que les politiques Supabase bloquent correctement toutes les attaques</div>
+</div>
+
+<div class="wrap">
+
+  <div class="warn">
+    ⚠️ Ces tests effectuent de <strong>vraies requêtes</strong> sur la base de données.<br>
+    Utilise un compte joueur <strong>de test dédié</strong> — il perdra 1 vie et aura un score modifié durant les tests.<br>
+    L'admin restaure les vies depuis le Panel Admin après. Les données de test sont nettoyées automatiquement.
+  </div>
+
+  <div class="card">
+    <div class="card-title">Identifiants de test</div>
+    <div class="grid2">
+      <div>
+        <div class="section-label label-admin">🔑 Compte Admin</div>
+        <div class="fg"><label>Pseudo</label><input id="adminUser" value="admin" placeholder="admin"></div>
+        <div class="fg"><label>Mot de passe</label><input id="adminPass" type="password" placeholder="••••••"></div>
+      </div>
+      <div>
+        <div class="section-label label-player">👤 Compte Joueur (test)</div>
+        <div class="fg"><label>Pseudo</label><input id="playerUser" placeholder="joueur_test"></div>
+        <div class="fg"><label>Mot de passe</label><input id="playerPass" type="password" placeholder="••••••"></div>
+      </div>
+    </div>
+    <button class="btn-run" id="runBtn" onclick="runAll()">▶ Lancer tous les tests</button>
+    <div class="progress" id="progress"></div>
+  </div>
+
+  <div class="card" id="resultsCard" style="display:none">
+    <div class="results-hdr">
+      <div class="card-title" style="margin:0">Résultats</div>
+      <span class="badge b-pass" id="cPass">— ✅</span>
+      <span class="badge b-fail" id="cFail">— ❌</span>
+      <span class="badge b-skip" id="cSkip">— ⏭</span>
+    </div>
+    <div id="resultsBody"></div>
+    <div class="sum-bar" id="sumBar" style="display:none">
+      <div class="sum-label">Verdict :</div>
+      <div class="sum-val" id="sumVerdict"></div>
+    </div>
+  </div>
+
+</div><!-- .wrap -->
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="shared/supabase-client.js"></script>
+<script>
+// ════════════════════════════════════════════════════════════
+// MOTEUR DE TEST
+// ════════════════════════════════════════════════════════════
+
+let nPass = 0, nFail = 0, nSkip = 0;
+let _groupEl = null;
+
+// ── Rendu ────────────────────────────────────────────────────
+
+function startGroup(title) {
+  document.getElementById('resultsCard').style.display = '';
+  const g = document.createElement('div');
+  g.className = 'test-group';
+  g.innerHTML = `<div class="group-title">${title}</div>`;
+  document.getElementById('resultsBody').appendChild(g);
+  _groupEl = g;
+}
+
+function _addRow(id, name) {
+  const d = document.createElement('div');
+  d.className = 'row r-run';
+  d.id = 'r_' + id;
+  d.innerHTML = `<span class="ico">⏳</span><span class="rname">${name}</span>`;
+  _groupEl.appendChild(d);
+}
+
+function _markPass(id) {
+  nPass++;
+  const r = document.getElementById('r_' + id);
+  if (r) { r.className = 'row r-pass'; r.querySelector('.ico').textContent = '✅'; }
+  document.getElementById('cPass').textContent = nPass + ' ✅';
+}
+
+function _markFail(id, reason) {
+  nFail++;
+  const r = document.getElementById('r_' + id);
+  if (r) {
+    r.className = 'row r-fail';
+    r.querySelector('.ico').textContent = '❌';
+    r.innerHTML += `<span class="reason">→ ${reason}</span>`;
+  }
+  document.getElementById('cFail').textContent = nFail + ' ❌';
+}
+
+function _markSkip(id, reason) {
+  nSkip++;
+  const r = document.getElementById('r_' + id);
+  if (r) {
+    r.className = 'row r-skip';
+    r.querySelector('.ico').textContent = '⏭';
+    if (reason) r.innerHTML += `<span class="note">(${reason})</span>`;
+  }
+  document.getElementById('cSkip').textContent = nSkip + ' ⏭';
+}
+
+function setProgress(msg) { document.getElementById('progress').textContent = msg; }
+
+// ── Assertions ───────────────────────────────────────────────
+// expectBlocked : l'opération doit retourner une erreur Supabase
+async function expectBlocked(id, name, fn) {
+  _addRow(id, name);
+  try {
+    const r = await fn();
+    if (r?.error) { _markPass(id); return true; }
+    _markFail(id, 'Non bloqué — opération réussie ! data=' + JSON.stringify(r?.data)?.slice(0,80));
+    return false;
+  } catch (e) { _markPass(id); return true; }
+}
+
+// expectOk : l'opération doit réussir (pas d'erreur)
+async function expectOk(id, name, fn) {
+  _addRow(id, name);
+  try {
+    const r = await fn();
+    if (r?.error) { _markFail(id, r.error.message); return false; }
+    _markPass(id); return true;
+  } catch (e) { _markFail(id, e.message); return false; }
+}
+
+// expectSilentFilter : UPDATE/DELETE silencieusement filtrés par RLS USING.
+// Supabase renvoie { error:null } même si 0 lignes modifiées.
+// On vérifie par read-after-write (reconnexion admin).
+async function expectSilentFilter(id, name, opFn, verifyFn) {
+  _addRow(id, name);
+  try {
+    await opFn();                       // opération joueur
+    const intact = await verifyFn();    // vérif admin
+    if (intact) { _markPass(id); return true; }
+    _markFail(id, 'Données modifiées — RLS USING inefficace !');
+    return false;
+  } catch (e) { _markFail(id, e.message); return false; }
+}
+
+// skip : test ignoré (prérequis manquant)
+function skip(id, name, reason) {
+  _addRow(id, name);
+  _markSkip(id, reason);
+}
+
+// ── Gestion de session ───────────────────────────────────────
+
+async function signAs(user, pass) {
+  await supabase.auth.signOut();
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email:    user.toLowerCase() + '@bipboup.local',
+    password: pass,
+  });
+  if (error) throw new Error(`Connexion "${user}" impossible : ${error.message}`);
+  return data.session;
+}
+
+// ── État de test ─────────────────────────────────────────────
+
+let ADMIN_USER, PLAYER_USER;
+let adminUid, playerUid, playerProfileId;
+let testMapId = null, testScriptId = null;
+
+// ════════════════════════════════════════════════════════════
+// PHASES
+// ════════════════════════════════════════════════════════════
+
+async function phase0_anonTests() {
+  startGroup('0 — Attaques sans session (rôle anon)');
+  setProgress('Tests anon…');
+
+  // On s'assure d'être déconnecté
+  await supabase.auth.signOut();
+
+  await expectBlocked('anon_fn_lose_live',
+    '[anon] Appel fn_lose_live sans être connecté → doit être bloqué',
+    () => supabase.rpc('fn_lose_live', { p_username: PLAYER_USER })
+  );
+
+  await expectBlocked('anon_fn_admin_reset',
+    '[anon] Appel fn_admin_reset_all_scores sans être connecté → doit être bloqué',
+    () => supabase.rpc('fn_admin_reset_all_scores')
+  );
+
+  await expectBlocked('anon_map_insert',
+    '[anon] INSERT map sans session → doit être bloqué',
+    () => supabase.from('maps').insert({ id:'_anon_hack', name:'anon hack', tier:'low',
+          user_id:'00000000-0000-0000-0000-000000000000', username:'anon',
+          data:{}, updated_at: new Date().toISOString(), created_at: new Date().toISOString() })
+  );
+
+  await expectBlocked('anon_profile_update',
+    '[anon] UPDATE profiles sans session → doit être bloqué',
+    () => supabase.from('profiles').update({ score_low: 9999 }).eq('username', PLAYER_USER)
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+
+async function phase1_setup(adminPass) {
+  startGroup('1 — Mise en place (session admin)');
+  setProgress('Connexion admin…');
+
+  _addRow('p1_admin_login', 'Connexion admin réussie');
+  try { await signAs(ADMIN_USER, adminPass); _markPass('p1_admin_login'); }
+  catch (e) { _markFail('p1_admin_login', e.message); throw e; }
+
+  const sess = (await supabase.auth.getSession()).data.session;
+  adminUid = sess.user.id;
+
+  _addRow('p1_get_player', 'Récupération du profil joueur de test');
+  const { data: pp } = await supabase.from('profiles').select('id,username')
+    .eq('username', PLAYER_USER).maybeSingle();
+  if (!pp) { _markFail('p1_get_player', 'Joueur introuvable'); throw new Error('Compte joueur absent.'); }
+  playerProfileId = pp.id;
+  _markPass('p1_get_player');
+
+  _addRow('p1_create_map', 'Création map de test (admin)');
+  const mapId = '_sectest_m_' + Date.now().toString(36);
+  const { error: me } = await supabase.from('maps').insert({
+    id: mapId, name: '_sectest_map', tier: 'low',
+    user_id: adminUid, username: ADMIN_USER,
+    data: { walls:[], goals:[], spawn:{col:5,row:5} },
+    updated_at: new Date().toISOString(), created_at: new Date().toISOString(),
+  });
+  if (me) { _markFail('p1_create_map', me.message); }
+  else { testMapId = mapId; _markPass('p1_create_map'); }
+
+  _addRow('p1_create_script', 'Création script de test (admin)');
+  const scriptId = '_sectest_s_' + Date.now().toString(36);
+  const { error: se } = await supabase.from('scripts').insert({
+    id: scriptId, name: '_sectest_script', tier: 'low', level: 1,
+    user_id: adminUid, username: ADMIN_USER,
+    blocks: [], is_example: false,
+    updated_at: new Date().toISOString(), created_at: new Date().toISOString(),
+  });
+  if (se) { _markFail('p1_create_script', se.message); }
+  else { testScriptId = scriptId; _markPass('p1_create_script'); }
+}
+
+// ──────────────────────────────────────────────────────────────
+
+async function phase2_playerAttacks(playerPass) {
+  startGroup('2 — Attaques simulées depuis un compte joueur');
+  setProgress('Connexion joueur…');
+
+  _addRow('p2_player_login', 'Connexion joueur réussie');
+  try { const s = await signAs(PLAYER_USER, playerPass); playerUid = s.user.id; _markPass('p2_player_login'); }
+  catch (e) { _markFail('p2_player_login', e.message); throw e; }
+
+  // ── Maps ─────────────────────────────────────────────────
+  await expectBlocked('p2_map_insert',
+    '[Maps] INSERT direct (créer une carte) → bloqué par maps_insert_admin',
+    () => supabase.from('maps').insert({
+      id: '_hack_map', name: 'Hack', tier: 'low',
+      user_id: playerUid, username: PLAYER_USER,
+      data: {}, updated_at: new Date().toISOString(), created_at: new Date().toISOString(),
+    })
+  );
+
+  await expectBlocked('p2_map_delete',
+    '[Maps] DELETE carte admin → bloqué par maps_delete_admin (erreur RLS)',
+    () => supabase.from('maps').delete().eq('id', testMapId ?? '_no_id')
+  );
+
+  if (testMapId) {
+    // DELETE sur maps avec USING(is_admin()) retourne une erreur car la policy existe.
+    // Si le test précédent a PASSÉ (erreur retournée), on fait un read-after-write pour confirmer.
+    await expectSilentFilter(
+      'p2_map_update',
+      '[Maps] UPDATE carte admin (read-after-write) → donnée intacte',
+      async () => supabase.from('maps').update({ name: '_HACKED' }).eq('id', testMapId),
+      async () => {
+        // Reconnecte en admin pour lire
+        const prevSess = PLAYER_USER;
+        await supabase.auth.signOut();
+        await signAs(ADMIN_USER, document.getElementById('adminPass').value);
+        const { data } = await supabase.from('maps').select('name').eq('id', testMapId).single();
+        await supabase.auth.signOut();
+        await signAs(PLAYER_USER, document.getElementById('playerPass').value);
+        return data?.name === '_sectest_map'; // intacte ?
+      }
+    );
+  } else {
+    skip('p2_map_update', '[Maps] UPDATE carte admin (read-after-write)', 'map de test non créée');
+  }
+
+  await expectOk('p2_map_select',
+    '[Maps] SELECT cartes → autorisé (lecture publique)',
+    () => supabase.from('maps').select('id,name').eq('tier','low').limit(5)
+  );
+
+  // ── Profils — UPDATE direct ──────────────────────────────
+  await expectBlocked('p2_prof_score',
+    '[Profils] UPDATE score_low = 9999 → bloqué (aucune politique UPDATE)',
+    () => supabase.from('profiles').update({ score_low: 9999 }).eq('username', PLAYER_USER)
+  );
+
+  await expectBlocked('p2_prof_lives',
+    '[Profils] UPDATE lives = 99 → bloqué',
+    () => supabase.from('profiles').update({ lives: 99 }).eq('username', PLAYER_USER)
+  );
+
+  await expectBlocked('p2_prof_role',
+    '[Profils] UPDATE role = \'admin\' → bloqué',
+    () => supabase.from('profiles').update({ role: 'admin' }).eq('username', PLAYER_USER)
+  );
+
+  await expectBlocked('p2_prof_other',
+    '[Profils] UPDATE profil admin → bloqué',
+    () => supabase.from('profiles').update({ score_low: 0 }).eq('username', ADMIN_USER)
+  );
+
+  await expectBlocked('p2_prof_delete',
+    '[Profils] DELETE propre profil → bloqué (admin uniquement)',
+    () => supabase.from('profiles').delete().eq('username', PLAYER_USER)
+  );
+
+  await expectBlocked('p2_prof_insert_admin',
+    '[Profils] INSERT avec role=\'admin\' → bloqué (policy force player)',
+    () => supabase.from('profiles').insert({
+      id: playerUid, username: PLAYER_USER + '_adm', role: 'admin',
+      lives: 3, score_low: 0, score_high: 0, progress_low: 1,
+    })
+  );
+
+  // ── Fonctions SECURITY DEFINER — cross-user ──────────────
+  await expectBlocked('p2_fn_lose_other',
+    '[fn_lose_live] Perdre la vie du compte admin → bloqué (Unauthorized)',
+    () => supabase.rpc('fn_lose_live', { p_username: ADMIN_USER })
+  );
+
+  await expectBlocked('p2_fn_score_other',
+    '[fn_update_score] Modifier score admin → bloqué',
+    () => supabase.rpc('fn_update_score', { p_username: ADMIN_USER, p_tier: 'low', p_score: 9999 })
+  );
+
+  await expectBlocked('p2_fn_unlock_other',
+    '[fn_unlock_level] Débloquer niveau sur compte admin → bloqué',
+    () => supabase.rpc('fn_unlock_level', { p_username: ADMIN_USER, p_tier: 'low', p_level: 3 })
+  );
+
+  // ── Fonctions SECURITY DEFINER — validations métier ──────
+  await expectBlocked('p2_fn_score_neg',
+    '[fn_update_score] Score négatif (-999) → bloqué (Invalid score)',
+    () => supabase.rpc('fn_update_score', { p_username: PLAYER_USER, p_tier: 'low', p_score: -999 })
+  );
+
+  await expectBlocked('p2_fn_score_tier',
+    '[fn_update_score] Tier invalide (\'hack\') → bloqué (Invalid tier)',
+    () => supabase.rpc('fn_update_score', { p_username: PLAYER_USER, p_tier: 'hack', p_score: 9999 })
+  );
+
+  await expectBlocked('p2_fn_unlock_tier',
+    '[fn_unlock_level] Tier invalide → bloqué',
+    () => supabase.rpc('fn_unlock_level', { p_username: PLAYER_USER, p_tier: 'high', p_level: 5 })
+  );
+
+  // ── Fonctions admin depuis compte joueur ─────────────────
+  await expectBlocked('p2_fn_adm_lives',
+    '[fn_admin_restore_lives] Depuis compte joueur → bloqué (is_admin())',
+    () => supabase.rpc('fn_admin_restore_lives', { p_username: PLAYER_USER, p_lives: 99 })
+  );
+
+  await expectBlocked('p2_fn_adm_all_lives',
+    '[fn_admin_restore_all_lives] Depuis compte joueur → bloqué',
+    () => supabase.rpc('fn_admin_restore_all_lives', { p_lives: 99 })
+  );
+
+  await expectBlocked('p2_fn_adm_score',
+    '[fn_admin_reset_score] Depuis compte joueur → bloqué',
+    () => supabase.rpc('fn_admin_reset_score', { p_username: PLAYER_USER, p_tier: 'low' })
+  );
+
+  await expectBlocked('p2_fn_adm_all',
+    '[fn_admin_reset_all_scores] Depuis compte joueur → bloqué',
+    () => supabase.rpc('fn_admin_reset_all_scores')
+  );
+
+  // ── Scripts — isolation ──────────────────────────────────
+  await expectBlocked('p2_script_insert_other',
+    '[Scripts] INSERT avec username=admin → bloqué (username ≠ auth.uid)',
+    () => supabase.from('scripts').insert({
+      id: '_hack_script', name: 'Hack', tier: 'low', level: 1,
+      user_id: playerUid, username: ADMIN_USER,  // user_id joueur mais username admin
+      blocks: [], is_example: false,
+      updated_at: new Date().toISOString(), created_at: new Date().toISOString(),
+    })
+  );
+
+  // Lecture : le joueur ne doit pas voir le script admin (non-example)
+  if (testScriptId) {
+    _addRow('p2_script_invisible',
+      '[Scripts] Script admin non visible depuis compte joueur → résultat vide'
+    );
+    const { data: rows } = await supabase.from('scripts').select('id').eq('id', testScriptId);
+    if (!rows || rows.length === 0) { _markPass('p2_script_invisible'); }
+    else { _markFail('p2_script_invisible', 'Script admin visible ! RLS SELECT défaillante'); }
+  } else {
+    skip('p2_script_invisible', '[Scripts] Visibilité cross-user', 'script de test non créé');
+  }
+
+  if (testScriptId) {
+    await expectSilentFilter(
+      'p2_script_update',
+      '[Scripts] UPDATE script admin (read-after-write) → intacte',
+      async () => supabase.from('scripts').update({ name: '_HACKED' }).eq('id', testScriptId),
+      async () => {
+        await supabase.auth.signOut();
+        await signAs(ADMIN_USER, document.getElementById('adminPass').value);
+        const { data } = await supabase.from('scripts').select('name').eq('id', testScriptId).single();
+        await supabase.auth.signOut();
+        await signAs(PLAYER_USER, document.getElementById('playerPass').value);
+        return data?.name === '_sectest_script';
+      }
+    );
+  } else {
+    skip('p2_script_update', '[Scripts] UPDATE script admin (read-after-write)', 'script de test non créé');
+  }
+
+  // ── Fonctions légitimes sur son propre compte ────────────
+  await expectOk('p2_fn_lose_own',
+    '[fn_lose_live] Perdre sa propre vie → autorisé',
+    () => supabase.rpc('fn_lose_live', { p_username: PLAYER_USER })
+  );
+
+  await expectOk('p2_fn_score_ok',
+    '[fn_update_score] Score plus élevé (GREATEST) → autorisé',
+    () => supabase.rpc('fn_update_score', { p_username: PLAYER_USER, p_tier: 'low', p_score: 42 })
+  );
+
+  await expectOk('p2_fn_score_lower',
+    '[fn_update_score] Score plus bas → autorisé sans effet (GREATEST conserve l\'ancien)',
+    () => supabase.rpc('fn_update_score', { p_username: PLAYER_USER, p_tier: 'low', p_score: 1 })
+  );
+
+  // Insérer son propre script → OK
+  let ownScriptId = null;
+  _addRow('p2_script_own', '[Scripts] INSERT son propre script → autorisé');
+  const { data: os, error: oe } = await supabase.from('scripts').insert({
+    id: '_sectest_own_' + Date.now().toString(36),
+    name: '_sectest_own', tier: 'low', level: 1,
+    user_id: playerUid, username: PLAYER_USER,
+    blocks: [], is_example: false,
+    updated_at: new Date().toISOString(), created_at: new Date().toISOString(),
+  }).select('id').single();
+  if (oe) { _markFail('p2_script_own', oe.message); }
+  else { ownScriptId = os.id; _markPass('p2_script_own'); }
+
+  if (ownScriptId) {
+    await expectOk('p2_script_delete_own',
+      '[Scripts] DELETE son propre script (non-exemple) → autorisé',
+      () => supabase.from('scripts').delete().eq('id', ownScriptId)
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
+
+async function phase3_adminValidation(adminPass) {
+  startGroup('3 — Validation : opérations légitimes admin');
+  setProgress('Reconnexion admin…');
+
+  _addRow('p3_relogin', 'Reconnexion admin');
+  try { await signAs(ADMIN_USER, adminPass); _markPass('p3_relogin'); }
+  catch (e) { _markFail('p3_relogin', e.message); return; }
+
+  await expectOk('p3_fn_lives',
+    '[fn_admin_restore_lives] Restaurer vies joueur → autorisé',
+    () => supabase.rpc('fn_admin_restore_lives', { p_username: PLAYER_USER, p_lives: 3 })
+  );
+
+  await expectOk('p3_fn_score',
+    '[fn_admin_reset_score] Reset score joueur → autorisé',
+    () => supabase.rpc('fn_admin_reset_score', { p_username: PLAYER_USER, p_tier: 'low' })
+  );
+
+  await expectOk('p3_fn_all',
+    '[fn_admin_reset_all_scores] Reset tous les scores → autorisé',
+    () => supabase.rpc('fn_admin_reset_all_scores')
+  );
+
+  // Créer une 2e map et la supprimer dans la foulée
+  _addRow('p3_map_lifecycle', '[Maps] Créer + supprimer une map → autorisé');
+  const mid = '_sectest_tmp_' + Date.now().toString(36);
+  const { error: mi } = await supabase.from('maps').insert({
+    id: mid, name: '_tmp', tier: 'low', user_id: adminUid, username: ADMIN_USER,
+    data: {}, updated_at: new Date().toISOString(), created_at: new Date().toISOString(),
+  });
+  if (mi) { _markFail('p3_map_lifecycle', 'INSERT: ' + mi.message); }
+  else {
+    const { error: md } = await supabase.from('maps').delete().eq('id', mid);
+    md ? _markFail('p3_map_lifecycle', 'DELETE: ' + md.message) : _markPass('p3_map_lifecycle');
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
+
+async function phase4_cleanup(adminPass) {
+  startGroup('4 — Nettoyage');
+  setProgress('Nettoyage…');
+
+  // S'assurer qu'on est connecté en admin
+  const sess = (await supabase.auth.getSession()).data.session;
+  if (!sess) { try { await signAs(ADMIN_USER, adminPass); } catch (e) {} }
+
+  _addRow('p4_map', 'Suppression map de test');
+  if (testMapId) {
+    const { error } = await supabase.from('maps').delete().eq('id', testMapId);
+    error ? _markFail('p4_map', error.message) : _markPass('p4_map');
+    testMapId = null;
+  } else { _markPass('p4_map'); }
+
+  _addRow('p4_script', 'Suppression script de test');
+  if (testScriptId) {
+    const { error } = await supabase.from('scripts').delete().eq('id', testScriptId);
+    error ? _markFail('p4_script', error.message) : _markPass('p4_script');
+    testScriptId = null;
+  } else { _markPass('p4_script'); }
+}
+
+// ════════════════════════════════════════════════════════════
+// POINT D'ENTRÉE
+// ════════════════════════════════════════════════════════════
+
+async function runAll() {
+  const adminUser  = document.getElementById('adminUser').value.trim();
+  const adminPass  = document.getElementById('adminPass').value;
+  const playerUser = document.getElementById('playerUser').value.trim();
+  const playerPass = document.getElementById('playerPass').value;
+
+  if (!adminUser || !adminPass || !playerUser || !playerPass) {
+    alert('Remplis tous les champs.'); return;
+  }
+
+  ADMIN_USER  = adminUser.toLowerCase();
+  PLAYER_USER = playerUser.toLowerCase();
+
+  // Reset
+  nPass = 0; nFail = 0; nSkip = 0;
+  testMapId = null; testScriptId = null;
+  document.getElementById('resultsBody').innerHTML = '';
+  document.getElementById('cPass').textContent = '— ✅';
+  document.getElementById('cFail').textContent = '— ❌';
+  document.getElementById('cSkip').textContent = '— ⏭';
+  document.getElementById('sumBar').style.display = 'none';
+
+  const btn = document.getElementById('runBtn');
+  btn.disabled = true;
+
+  try {
+    await phase0_anonTests();
+    await phase1_setup(adminPass);
+    await phase2_playerAttacks(playerPass);
+    await phase3_adminValidation(adminPass);
+    await phase4_cleanup(adminPass);
+  } catch (e) {
+    setProgress('⛔ Erreur fatale : ' + e.message + ' — Tests interrompus.');
+    console.error(e);
+    // Tenter de nettoyer quand même
+    try {
+      await supabase.auth.signOut();
+      await signAs(ADMIN_USER, adminPass);
+      if (testMapId)    await supabase.from('maps').delete().eq('id', testMapId);
+      if (testScriptId) await supabase.from('scripts').delete().eq('id', testScriptId);
+    } catch (_) {}
+  } finally {
+    await supabase.auth.signOut();
+    btn.disabled = false;
+
+    const total = nPass + nFail;
+    const sumEl = document.getElementById('sumVerdict');
+    const bar   = document.getElementById('sumBar');
+    bar.style.display = 'flex';
+    if (nFail === 0) {
+      sumEl.style.color = 'var(--green)';
+      sumEl.textContent = `🎉 Tout est sécurisé — ${nPass}/${total} tests passés`;
+    } else {
+      sumEl.style.color = 'var(--red)';
+      sumEl.textContent = `⚠️ ${nFail} faille(s) détectée(s) — ${nPass}/${total} tests passés`;
+    }
+    setProgress(`Terminé. ${nPass} ✅  ${nFail} ❌  ${nSkip} ⏭`);
+  }
+}
+</script>
+</body>
+</html>

@@ -172,19 +172,19 @@ const Auth = (() => {
 
   async function updateScore(username, tier, score) {
     const col = tier === 'low' ? 'score_low' : 'score_high';
-    // Mise à jour optimiste du cache (callers sync voient la valeur immédiatement)
     if (_profile && _profile.username === username.toLowerCase()) {
       if (score <= (_profile[col] || 0)) return; // pas d'amélioration
+      // Mise à jour optimiste du cache (callers sync voient la valeur immédiatement)
       _profile[col] = score;
       _writeLocalSession(_profile);
-      await supabase.from('profiles').update({ [col]: score }).eq('id', _profile.id);
-    } else {
-      // Cas admin / autre utilisateur — vérif avant update
-      const { data } = await supabase
-        .from('profiles').select(col).eq('username', username.toLowerCase()).single();
-      if (!data || score <= (data[col] || 0)) return;
-      await supabase.from('profiles').update({ [col]: score }).eq('username', username.toLowerCase());
     }
+    // Appel sécurisé via fonction SECURITY DEFINER — le serveur vérifie
+    // que le score ne peut que progresser (GREATEST) et que c'est bien sa session
+    await supabase.rpc('fn_update_score', {
+      p_username: username.toLowerCase(),
+      p_tier:     tier,
+      p_score:    score,
+    });
   }
 
   async function loseLive(username) {
@@ -193,11 +193,16 @@ const Auth = (() => {
     // Optimiste
     _profile.lives = Math.max(0, (_profile.lives || 0) - 1);
     _writeLocalSession(_profile);
-    await supabase.from('profiles').update({ lives: _profile.lives }).eq('id', _profile.id);
+    // Appel sécurisé — le serveur vérifie que c'est bien sa session et bloque à 0
+    await supabase.rpc('fn_lose_live', { p_username: username.toLowerCase() });
   }
 
   async function restoreLives(username, count = 3) {
-    await supabase.from('profiles').update({ lives: count }).eq('username', username.toLowerCase());
+    // Réservé à l'admin (vérifié côté serveur dans fn_admin_restore_lives)
+    await supabase.rpc('fn_admin_restore_lives', {
+      p_username: username.toLowerCase(),
+      p_lives:    count,
+    });
     if (_profile && _profile.username === username.toLowerCase()) {
       _profile.lives = count;
       _writeLocalSession(_profile);
@@ -207,11 +212,16 @@ const Auth = (() => {
   async function unlockLevel(tier, level) {
     const col = `progress_${tier}`;
     const current = _profile ? (_profile[col] || 1) : 1;
-    if (level <= current) return;
-    if (!_profile) return;
+    if (level <= current || !_profile) return;
+    // Optimiste
     _profile[col] = level;
     _writeLocalSession(_profile);
-    await supabase.from('profiles').update({ [col]: level }).eq('id', _profile.id);
+    // Appel sécurisé — le serveur vérifie session et ne recule jamais (GREATEST)
+    await supabase.rpc('fn_unlock_level', {
+      p_username: _profile.username,
+      p_tier:     tier,
+      p_level:    level,
+    });
   }
 
   // ── Leaderboard (async) ───────────────────────────────────

@@ -34,7 +34,7 @@
     <div class="tb-title">BipBoup ROS Workstation — Coupe de France de Robotique 2026</div>
     <div class="tb-ros" id="tbRos">ROS2 HUMBLE ●</div>
     <span id="htUserBadge" style="font-size:9px;color:var(--muted);font-family:var(--mono);margin-right:4px"></span>
-    <button id="btnArenaEdit" class="tb-action-btn" onclick="openArenaEditor()" title="Éditeur d'arène (admin)" style="display:none">🗺</button>
+    <button id="btnArenaEdit" class="tb-action-btn" title="Arène">🗺</button>
     <button class="tb-action-btn" onclick="cmdQuickLaunch()" title="Quick Launch — démarre nodes + relâche E-STOP" style="color:var(--green)">🚀</button>
     <button class="tb-action-btn" onclick="fullReset()" title="Full Reset — réinitialise tout">🔄</button>
     <button class="tb-action-btn" onclick="startTutorial()" title="Tutoriel interactif">💡</button>
@@ -259,6 +259,20 @@
   </div>
 </div>
 
+<!-- ARENA SELECTOR — joueurs (non-admin) -->
+<div id="aeSelectorModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:800;align-items:center;justify-content:center" onclick="if(event.target===this)closeArenaSelector()">
+  <div style="background:var(--bg2,#111827);border:1px solid var(--border,#1e293b);border-radius:10px;width:400px;max-height:75vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px #000a">
+    <div style="padding:13px 16px;border-bottom:1px solid var(--border,#1e293b);display:flex;align-items:center;gap:8px">
+      <span style="font-weight:900;font-size:13px;color:var(--text,#e2e8f0)">🗺 Choisir une arène</span>
+      <span style="font-size:10px;color:var(--muted,#64748b);margin-left:4px">créées par l'administrateur</span>
+      <button onclick="closeArenaSelector()" style="margin-left:auto;background:none;border:none;color:var(--muted,#64748b);font-size:18px;cursor:pointer;line-height:1;padding:0 4px" onmouseover="this.style.color='var(--red,#ef4444)'" onmouseout="this.style.color='var(--muted,#64748b)'">×</button>
+    </div>
+    <div id="aeSelectorList" style="padding:10px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:6px">
+      <div style="color:var(--muted,#64748b);font-size:12px;text-align:center;padding:24px">Chargement…</div>
+    </div>
+  </div>
+</div>
+
 <!-- Scripts partagés plateforme -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="../shared/supabase-client.js"></script>
@@ -275,10 +289,16 @@
     var lives = u.role === 'admin' ? '♾' : '❤️×' + u.lives;
     badge.textContent = '👤 ' + u.username + ' · ' + lives;
   }
-  // Bouton éditeur d'arène — admin uniquement
-  if (u && u.role === 'admin') {
-    var btn = document.getElementById('btnArenaEdit');
-    if (btn) btn.style.display = '';
+  // Bouton arène : admin → éditeur complet, joueur → sélecteur de carte
+  var arenaBtn = document.getElementById('btnArenaEdit');
+  if (arenaBtn && u) {
+    if (u.role === 'admin') {
+      arenaBtn.title   = 'Éditeur d\'arène (admin)';
+      arenaBtn.onclick = function() { openArenaEditor(); };
+    } else {
+      arenaBtn.title   = 'Choisir une arène';
+      arenaBtn.onclick = function() { openArenaSelector(); };
+    }
   }
 })();
 </script>
