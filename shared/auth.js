@@ -1,11 +1,11 @@
 // ════════════════════════════════════════════════════════════
-// AUTHENTIFICATION & GESTION UTILISATEURS
-// Dépend de : storage.js
+// AUTHENTIFICATION & GESTION UTILISATEURS — Supabase
+// Dépend de : supabase-client.js, storage.js
 // ════════════════════════════════════════════════════════════
 
 const Auth = (() => {
 
-  // Script exemple donné à chaque nouveau joueur (niveau 1, map default)
+  // Script exemple injecté pour chaque nouveau joueur
   const EXAMPLE_BLOCKS = [
     { type: 'move', val: 3 },
     { type: 'turn', val: 90 },
@@ -14,117 +14,254 @@ const Auth = (() => {
     { type: 'move', val: 3 },
   ];
 
-  function _makeUser(username, password, role, lives) {
-    return {
-      username,
-      password,
-      role,
-      lives,
-      scores: { low: 0, high: 0 },
-      createdAt: new Date().toISOString(),
-    };
+  // Cache en mémoire du profil courant (null avant init())
+  let _profile = null;
+
+  // ── Helpers internes ─────────────────────────────────────
+
+  // Écrit un snapshot du profil dans bipboup_session (pour les gardes inline)
+  function _writeLocalSession(p) {
+    Storage.setSession({
+      username:     p.username,
+      role:         p.role,
+      lives:        p.lives,
+      score_low:    p.score_low    || 0,
+      score_high:   p.score_high   || 0,
+      progress_low: p.progress_low || 1,
+      loginAt:      Date.now(),
+    });
   }
 
-  // Crée le compte admin si absent
-  function init() {
-    const users = Storage.getUsers();
-    if (!users.admin) {
-      users.admin = _makeUser('admin', 'admin', 'admin', 99);
-      Storage.setUsers(users);
+  // Charge le profil depuis la table profiles et le met en cache
+  async function _fetchProfile(userId) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+    if (error || !data) return null;
+    _profile = data;
+    _writeLocalSession(data);
+    return data;
+  }
+
+  // ── Initialisation — appeler au DOMContentLoaded ─────────
+  // Restaure la session Supabase depuis le SDK (autoRefresh)
+  // et peuple le cache _profile.
+
+  async function init() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      // Invalide le miroir localStorage si Supabase dit "non connecté"
+      Storage.clearSession();
+      _profile = null;
+      return;
+    }
+    const p = await _fetchProfile(session.user.id);
+    if (!p) {
+      // Compte Supabase sans profil (ex : supprimé par admin)
+      await supabase.auth.signOut();
+      Storage.clearSession();
+      _profile = null;
     }
   }
 
-  function login(username, password) {
-    const users = Storage.getUsers();
-    const u = users[username.toLowerCase()];
-    if (!u)              return { ok: false, error: 'Utilisateur introuvable' };
-    if (u.password !== password) return { ok: false, error: 'Mot de passe incorrect' };
-    Storage.setSession({ username: u.username, role: u.role, loginAt: Date.now() });
+  // ── Login / Register / Logout (async) ────────────────────
+
+  async function login(username, password) {
+    const email = `${username.toLowerCase()}@bipboup.local`;
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      const msg = /invalid|credential/i.test(error.message)
+        ? 'Identifiants incorrects'
+        : error.message;
+      return { ok: false, error: msg };
+    }
+    const p = await _fetchProfile(data.user.id);
+    if (!p) {
+      await supabase.auth.signOut();
+      return { ok: false, error: 'Compte introuvable — contacte un administrateur.' };
+    }
     return { ok: true };
   }
 
-  function register(username, password) {
-    if (username.length < 3)      return { ok: false, error: 'Pseudo trop court (min. 3 car.)' };
-    if (password.length < 4)      return { ok: false, error: 'Mot de passe trop court (min. 4 car.)' };
-    if (!/^\w+$/.test(username))  return { ok: false, error: 'Pseudo : lettres, chiffres et _ seulement' };
-    const users = Storage.getUsers();
-    if (users[username.toLowerCase()]) return { ok: false, error: 'Pseudo déjà utilisé' };
-    users[username.toLowerCase()] = _makeUser(username, password, 'player', 3);
-    Storage.setUsers(users);
-    _seedScript(username);
+  async function register(username, password) {
+    if (username.length < 3)     return { ok: false, error: 'Pseudo trop court (min. 3 car.)' };
+    if (password.length < 4)     return { ok: false, error: 'Mot de passe trop court (min. 4 car.)' };
+    if (!/^\w+$/.test(username)) return { ok: false, error: 'Pseudo : lettres, chiffres et _ seulement' };
+
+    // Vérifie la disponibilité du pseudo
+    const { data: existing } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('username', username.toLowerCase())
+      .maybeSingle();
+    if (existing) return { ok: false, error: 'Pseudo déjà utilisé' };
+
+    const email = `${username.toLowerCase()}@bipboup.local`;
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error)      return { ok: false, error: error.message };
+    if (!data.user) return { ok: false, error: 'Erreur lors de la création du compte.' };
+
+    // Crée le profil dans la table
+    const { error: profErr } = await supabase.from('profiles').insert({
+      id:           data.user.id,
+      username:     username.toLowerCase(),
+      role:         'player',
+      lives:        3,
+      score_low:    0,
+      score_high:   0,
+      progress_low: 1,
+    });
+    if (profErr) return { ok: false, error: 'Erreur profil: ' + profErr.message };
+
+    // Script exemple de départ
+    await _seedScript(data.user.id, username.toLowerCase());
+
     return login(username, password);
   }
 
-  function logout() { Storage.clearSession(); }
+  async function logout() {
+    await supabase.auth.signOut();
+    _profile = null;
+    Storage.clearSession();
+  }
 
-  function getSession()  { return Storage.getSession(); }
+  // ── Accès SYNCHRONES (cache + localStorage) ───────────────
+  // Disponibles immédiatement sans await, depuis n'importe quelle page.
+  // init() doit avoir été appelé au moins une fois pour que _profile
+  // soit à jour ; en attendant, getCurrentUser() tombe sur le miroir
+  // localStorage écrit lors du dernier login.
+
+  function getSession() {
+    if (_profile) {
+      return { username: _profile.username, role: _profile.role, loginAt: Date.now() };
+    }
+    return Storage.getSession();   // fallback avant init()
+  }
 
   function getCurrentUser() {
-    const s = getSession();
+    if (_profile) {
+      return {
+        username: _profile.username,
+        role:     _profile.role,
+        lives:    _profile.lives,
+        scores:   { low: _profile.score_low || 0, high: _profile.score_high || 0 },
+        progress: { lowUnlocked: _profile.progress_low || 1 },
+      };
+    }
+    // Fallback sur le miroir localStorage (avant init)
+    const s = Storage.getSession();
     if (!s) return null;
-    return Storage.getUsers()[s.username.toLowerCase()] || null;
+    return {
+      username: s.username,
+      role:     s.role,
+      lives:    typeof s.lives === 'number' ? s.lives : 3,
+      scores:   { low: s.score_low || 0, high: s.score_high || 0 },
+      progress: { lowUnlocked: s.progress_low || 1 },
+    };
   }
 
   function isAdmin() {
-    const s = getSession();
+    if (_profile) return _profile.role === 'admin';
+    const s = Storage.getSession();
     return !!(s && s.role === 'admin');
   }
 
-  function updateScore(username, tier, score) {
-    const users = Storage.getUsers();
-    const u = users[username.toLowerCase()];
-    if (!u) return;
-    u.scores = u.scores || { low: 0, high: 0 };
-    if (score > (u.scores[tier] || 0)) u.scores[tier] = score;
-    Storage.setUsers(users);
+  // ── Mise à jour du profil (async, optimiste) ──────────────
+
+  async function updateScore(username, tier, score) {
+    const col = tier === 'low' ? 'score_low' : 'score_high';
+    // Mise à jour optimiste du cache (callers sync voient la valeur immédiatement)
+    if (_profile && _profile.username === username.toLowerCase()) {
+      if (score <= (_profile[col] || 0)) return; // pas d'amélioration
+      _profile[col] = score;
+      _writeLocalSession(_profile);
+      await supabase.from('profiles').update({ [col]: score }).eq('id', _profile.id);
+    } else {
+      // Cas admin / autre utilisateur — vérif avant update
+      const { data } = await supabase
+        .from('profiles').select(col).eq('username', username.toLowerCase()).single();
+      if (!data || score <= (data[col] || 0)) return;
+      await supabase.from('profiles').update({ [col]: score }).eq('username', username.toLowerCase());
+    }
   }
 
-  function loseLive(username) {
-    const users = Storage.getUsers();
-    const u = users[username.toLowerCase()];
-    if (!u || u.role === 'admin') return;
-    u.lives = Math.max(0, (u.lives || 0) - 1);
-    Storage.setUsers(users);
+  async function loseLive(username) {
+    if (!_profile || _profile.role === 'admin') return;
+    if (_profile.username !== username.toLowerCase()) return;
+    // Optimiste
+    _profile.lives = Math.max(0, (_profile.lives || 0) - 1);
+    _writeLocalSession(_profile);
+    await supabase.from('profiles').update({ lives: _profile.lives }).eq('id', _profile.id);
   }
 
-  function restoreLives(username, count = 3) {
-    const users = Storage.getUsers();
-    const u = users[username.toLowerCase()];
-    if (!u) return;
-    u.lives = count;
-    Storage.setUsers(users);
+  async function restoreLives(username, count = 3) {
+    await supabase.from('profiles').update({ lives: count }).eq('username', username.toLowerCase());
+    if (_profile && _profile.username === username.toLowerCase()) {
+      _profile.lives = count;
+      _writeLocalSession(_profile);
+    }
   }
 
-  function getLeaderboard(tier) {
-    const users = Storage.getUsers();
-    return Object.values(users)
-      .filter(u => u.role === 'player')
-      .map(u => {
-        const sc = u.scores || {};
-        const score = tier === 'combined'
-          ? (sc.low || 0) + (sc.high || 0)
-          : (sc[tier] || 0);
-        return { username: u.username, score, low: sc.low || 0, high: sc.high || 0 };
-      })
-      .sort((a, b) => b.score - a.score);
+  async function unlockLevel(tier, level) {
+    const col = `progress_${tier}`;
+    const current = _profile ? (_profile[col] || 1) : 1;
+    if (level <= current) return;
+    if (!_profile) return;
+    _profile[col] = level;
+    _writeLocalSession(_profile);
+    await supabase.from('profiles').update({ [col]: level }).eq('id', _profile.id);
   }
 
-  function _seedScript(username) {
-    Storage.setScripts(username, [{
-      id: 'ex_' + Date.now(),
-      name: 'script_exemple',
-      tier: 'low',
-      level: 1,
-      blocks: EXAMPLE_BLOCKS,
-      isExample: true,
-      lockedToMap: 'default',
-      createdAt: new Date().toISOString(),
-    }]);
+  // ── Leaderboard (async) ───────────────────────────────────
+
+  async function getLeaderboard(tier) {
+    const { data } = await supabase
+      .from('profiles')
+      .select('username, score_low, score_high')
+      .eq('role', 'player');
+    if (!data) return [];
+    return data.map(u => {
+      const score = tier === 'combined'
+        ? (u.score_low || 0) + (u.score_high || 0)
+        : tier === 'low' ? (u.score_low || 0) : (u.score_high || 0);
+      return { username: u.username, score, low: u.score_low || 0, high: u.score_high || 0 };
+    }).sort((a, b) => b.score - a.score);
+  }
+
+  // ── Admin ─────────────────────────────────────────────────
+
+  async function getAllUsers() {
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('role', 'player')
+      .order('created_at');
+    return data || [];
+  }
+
+  // ── Seed script exemple ───────────────────────────────────
+
+  async function _seedScript(userId, username) {
+    await supabase.from('scripts').insert({
+      id:         'ex_' + Date.now().toString(36),
+      name:       'script_exemple',
+      tier:       'low',
+      level:      1,
+      user_id:    userId,
+      username,
+      blocks:     EXAMPLE_BLOCKS,
+      is_example: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
   }
 
   return {
     init, login, register, logout,
     getSession, getCurrentUser, isAdmin,
-    updateScore, loseLive, restoreLives, getLeaderboard,
+    updateScore, loseLive, restoreLives, unlockLevel,
+    getLeaderboard, getAllUsers,
   };
 })();

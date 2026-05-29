@@ -23,15 +23,23 @@ function closeScriptPanel() {
   document.getElementById('termInput')?.focus();
 }
 
-function renderScriptPresets() {
+async function renderScriptPresets() {
   const el      = document.getElementById('scriptPresetList');
   const isAdmin = Auth.isAdmin();
   const session = Auth.getSession();
-  el.innerHTML  = '';
+  el.innerHTML  = '<div style="font-size:10px;color:var(--muted);padding:6px 8px">Chargement…</div>';
 
-  const saved = isAdmin
-    ? Persistence.getAllScripts('high')
-    : Persistence.getUserScripts('high');
+  let saved;
+  try {
+    saved = await (isAdmin
+      ? Persistence.getAllScripts('high')
+      : Persistence.getUserScripts('high'));
+  } catch (e) {
+    el.innerHTML = '<div style="font-size:10px;color:var(--red);padding:6px 8px">Erreur réseau.</div>';
+    return;
+  }
+
+  el.innerHTML = '';
 
   const secLabel = document.createElement('div');
   secLabel.className   = 'sp-section-label';
@@ -49,28 +57,32 @@ function renderScriptPresets() {
   saved.forEach(s => {
     const d = document.createElement('div');
     d.className = 'sp-preset-item';
-    const ownerTag = s.owner && s.owner !== session?.username
-      ? `<span style="font-size:8px;color:var(--purple);margin-left:4px">${s.owner}</span>` : '';
+    // Supporte les deux formats de champs (migration / nouveau)
+    const scriptOwner = s.username || s.owner || session?.username;
+    const isOther = scriptOwner && scriptOwner !== session?.username;
+    const ownerTag = isOther
+      ? `<span style="font-size:8px;color:var(--purple);margin-left:4px">${scriptOwner}</span>` : '';
+    const dateStr = new Date(s.updated_at || s.updatedAt || s.created_at || s.createdAt).toLocaleDateString('fr');
     d.innerHTML = `
       <div style="display:flex;align-items:center;gap:4px">
         <span style="font-weight:700;color:var(--green);flex:1">${s.name}${ownerTag}</span>
-        <button onclick="event.stopPropagation();_htDeleteScript('${s.id}','${s.owner||session?.username}')"
+        <button onclick="event.stopPropagation();_htDeleteScript('${s.id}')"
           style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:11px;padding:1px 4px;transition:.15s"
           onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--muted)'">✕</button>
       </div>
-      <div style="font-size:9px;color:var(--muted)">${new Date(s.updatedAt||s.createdAt).toLocaleDateString('fr')}</div>`;
+      <div style="font-size:9px;color:var(--muted)">${dateStr}</div>`;
     d.onclick = () => { document.getElementById('scriptEditorArea').value = s.code || ''; };
     el.appendChild(d);
   });
 }
 
-function _htDeleteScript(id, owner) {
+async function _htDeleteScript(id) {
   if (!confirm('Supprimer ce script ?')) return;
-  Persistence.deleteScript(id, owner);
+  await Persistence.deleteScript(id);
   renderScriptPresets();
 }
 
-function saveCurrentScript() {
+async function saveCurrentScript() {
   const code = document.getElementById('scriptEditorArea').value.trim();
   if (!code || code === SCRIPT_SYNTAX_HINT.trim()) {
     termLog('[script] Éditeur vide — rien à sauvegarder', 'warn');
@@ -78,7 +90,8 @@ function saveCurrentScript() {
   }
   const name = prompt('Nom du script :');
   if (!name || !name.trim()) return;
-  Persistence.saveHighScript(name.trim(), code);
+  const entry = await Persistence.saveHighScript(name.trim(), code);
+  if (!entry) { termLog('[script] Erreur réseau — sauvegarde échouée', 'err'); return; }
   termLog(`[script] Script "${name.trim()}" sauvegardé`, 'info');
   renderScriptPresets();
 }

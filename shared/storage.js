@@ -1,34 +1,31 @@
 // ════════════════════════════════════════════════════════════
-// COUCHE DE STOCKAGE — localStorage (migration DB : remplacer
-// uniquement ce module ; l'API publique reste identique)
+// COUCHE DE STOCKAGE — shim de compatibilité post-migration
+//
+// La session réelle est gérée par Supabase (auth.js).
+// Ce module ne sert plus qu'à lire/écrire bipboup_session
+// (utilisé par les gardes inline des pages tutoriels).
+// Tous les autres appels (getUsers, setMaps…) sont des stubs
+// vides pour éviter des erreurs si une référence traîne.
 // ════════════════════════════════════════════════════════════
 
 const Storage = (() => {
-  const P = 'bipboup_';
-  const _get = k => { try { return JSON.parse(localStorage.getItem(P + k)); } catch { return null; } };
-  const _set = (k, v) => localStorage.setItem(P + k, JSON.stringify(v));
-  const _del = k => localStorage.removeItem(P + k);
+  const KEY = 'bipboup_session';
+  const _get = () => { try { return JSON.parse(localStorage.getItem(KEY)); } catch { return null; } };
 
   return {
-    // Utilisateurs
-    getUsers:      ()    => _get('users') || {},
-    setUsers:      v     => _set('users', v),
+    // Session locale (miroir du profil Supabase, écrit par auth.js)
+    getSession:    ()    => _get(),
+    setSession:    v     => localStorage.setItem(KEY, JSON.stringify(v)),
+    clearSession:  ()    => localStorage.removeItem(KEY),
 
-    // Session courante
-    getSession:    ()    => _get('session'),
-    setSession:    v     => _set('session', v),
-    clearSession:  ()    => _del('session'),
-
-    // Maps par utilisateur
-    getMaps:       user  => _get(`maps_${user}`) || [],
-    setMaps:       (u,v) => _set(`maps_${u}`, v),
-
-    // Pool de maps partagées (tests de score)
-    getSharedMaps: ()    => _get('shared_maps') || [],
-    setSharedMaps: v     => _set('shared_maps', v),
-
-    // Scripts par utilisateur
-    getScripts:    user  => _get(`scripts_${user}`) || [],
-    setScripts:    (u,v) => _set(`scripts_${u}`, v),
+    // Stubs — n'utilisent plus localStorage, ne font rien
+    getUsers:      ()    => ({}),
+    setUsers:      ()    => {},
+    getMaps:       ()    => [],
+    setMaps:       ()    => {},
+    getScripts:    ()    => [],
+    setScripts:    ()    => {},
+    getSharedMaps: ()    => [],
+    setSharedMaps: ()    => {},
   };
 })();

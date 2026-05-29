@@ -1,10 +1,12 @@
 // ════════════════════════════════════════════
 // SAVE / LOAD — Maps & Scripts Low Tier
 // Dépend de : shared/persistence.js, shared/auth.js
+// Toutes les ops Persistence sont async.
 // ════════════════════════════════════════════
 
-let _slType = null; // 'map' | 'script'
-let _slMode = null; // 'save' | 'load'
+let _slType  = null; // 'map' | 'script'
+let _slMode  = null; // 'save' | 'load'
+let _slItems = [];   // cache de la liste courante (evite double-fetch)
 
 // ── Ouverture ───────────────────────────────
 
@@ -26,17 +28,18 @@ function openLoad(type) {
   document.getElementById('slTitle').textContent      = label;
   document.getElementById('slSaveForm').style.display = 'none';
   document.getElementById('slLoadList').style.display = '';
-  _renderLoadList();
+  document.getElementById('slLoadList').innerHTML     = '<div class="sl-empty">Chargement…</div>';
   document.getElementById('slOverlay').style.display  = 'flex';
+  _renderLoadList(); // async, démarre en arrière-plan
 }
 
 function closeSL() {
   document.getElementById('slOverlay').style.display = 'none';
 }
 
-// ── Sauvegarde ──────────────────────────────
+// ── Sauvegarde (async) ──────────────────────
 
-function doSave() {
+async function doSave() {
   const name  = document.getElementById('slNameInput').value.trim();
   const errEl = document.getElementById('slSaveError');
   errEl.textContent = '';
@@ -45,41 +48,50 @@ function doSave() {
   if (!/^[\w\- ]+$/.test(name)) { errEl.textContent = 'Lettres, chiffres, - et espace uniquement.'; return; }
 
   if (_slType === 'map') {
-    Persistence.saveMap(name, mapData);
+    const entry = await Persistence.saveMap(name, mapData);
+    if (!entry) { errEl.textContent = 'Erreur réseau — réessaie.'; return; }
     _flash('🗺️ Carte "' + name + '" sauvegardée');
   } else {
     const blocks = getBlocks().map(b => ({ type: b.type, val: b.val }));
     if (!blocks.length) { errEl.textContent = 'Aucun bloc à sauvegarder.'; return; }
-    Persistence.saveScript(name, currentLevel, blocks);
+    const entry = await Persistence.saveScript(name, currentLevel, blocks);
+    if (!entry) { errEl.textContent = 'Erreur réseau — réessaie.'; return; }
     _flash('💾 Script "' + name + '" sauvegardé');
   }
   closeSL();
 }
 
-// ── Chargement — rendu de la liste ──────────
+// ── Chargement — rendu de la liste (async) ──
 
-function _renderLoadList() {
+async function _renderLoadList() {
   const el      = document.getElementById('slLoadList');
   const isAdmin = Auth.isAdmin();
   const session = Auth.getSession();
 
-  let items = _slType === 'map'
-    ? (isAdmin ? Persistence.getAllMaps()          : Persistence.getUserMaps())
-    : (isAdmin ? Persistence.getAllScripts('low')  : Persistence.getUserScripts('low'));
+  try {
+    _slItems = _slType === 'map'
+      ? await (isAdmin ? Persistence.getAllMaps()         : Persistence.getUserMaps())
+      : await (isAdmin ? Persistence.getAllScripts('low') : Persistence.getUserScripts('low'));
+  } catch (e) {
+    el.innerHTML = '<div class="sl-empty">Erreur réseau — réessaie.</div>';
+    return;
+  }
 
-  if (!items.length) {
+  if (!_slItems.length) {
     el.innerHTML = '<div class="sl-empty">Aucun élément sauvegardé.</div>';
     return;
   }
 
-  el.innerHTML = items.map(item => {
-    const date     = new Date(item.updatedAt || item.createdAt).toLocaleDateString('fr');
-    const isOther  = item.owner && item.owner !== session.username;
-    const ownerTag = isOther  ? `<span class="sl-tag sl-tag-owner">${item.owner}</span>` : '';
-    const exTag    = item.isExample ? '<span class="sl-tag sl-tag-ex">exemple</span>'  : '';
-    const lvlTag   = item.level    ? `<span class="sl-tag">N${item.level}</span>`      : '';
-    const delDisabled = item.isExample && !isAdmin ? 'disabled title="Script exemple non supprimable"' : '';
-    const owner    = item.owner || session.username;
+  el.innerHTML = _slItems.map(item => {
+    // Support des deux formats de noms de champs (migration / nouveau)
+    const date     = new Date(item.updated_at || item.updatedAt || item.created_at || item.createdAt).toLocaleDateString('fr');
+    const owner    = item.username || item.owner || session?.username;
+    const isOther  = owner && owner !== session?.username;
+    const ownerTag = isOther ? `<span class="sl-tag sl-tag-owner">${owner}</span>` : '';
+    const isEx     = item.is_example || item.isExample;
+    const exTag    = isEx   ? '<span class="sl-tag sl-tag-ex">exemple</span>' : '';
+    const lvlTag   = item.level ? `<span class="sl-tag">N${item.level}</span>` : '';
+    const delDisabled = isEx && !isAdmin ? 'disabled title="Script exemple non supprimable"' : '';
     return `
       <div class="sl-item">
         <div class="sl-item-info">
@@ -87,19 +99,16 @@ function _renderLoadList() {
           <div class="sl-item-meta">${date}</div>
         </div>
         <div class="sl-item-actions">
-          <button class="sl-btn sl-btn-load" onclick="_slLoad('${item.id}','${owner}')">Charger</button>
-          <button class="sl-btn sl-btn-del"  onclick="_slDelete('${item.id}','${owner}')" ${delDisabled}>✕</button>
+          <button class="sl-btn sl-btn-load" onclick="_slLoad('${item.id}')">Charger</button>
+          <button class="sl-btn sl-btn-del"  onclick="_slDelete('${item.id}')" ${delDisabled}>✕</button>
         </div>
       </div>`;
   }).join('');
 }
 
-function _slLoad(id, owner) {
-  const isAdmin = Auth.isAdmin();
-  const items   = _slType === 'map'
-    ? (isAdmin ? Persistence.getAllMaps()         : Persistence.getUserMaps())
-    : (isAdmin ? Persistence.getAllScripts('low') : Persistence.getUserScripts('low'));
-  const entry   = items.find(i => i.id === id);
+// Charge un élément depuis le cache _slItems
+function _slLoad(id) {
+  const entry = _slItems.find(i => i.id === id);
   if (!entry) return;
 
   if (_slType === 'map') {
@@ -120,12 +129,11 @@ function _slLoad(id, owner) {
   closeSL();
 }
 
-function _slDelete(id, owner) {
+async function _slDelete(id) {
   if (!confirm('Supprimer cet élément ?')) return;
-  _slType === 'map'
-    ? Persistence.deleteMap(id, owner)
-    : Persistence.deleteScript(id, owner);
-  _renderLoadList();
+  if (_slType === 'map') await Persistence.deleteMap(id);
+  else                   await Persistence.deleteScript(id);
+  await _renderLoadList();
 }
 
 // ── Notification flash ──────────────────────

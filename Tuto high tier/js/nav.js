@@ -164,19 +164,22 @@ function _execNextScript() {
     cmdNavTo(cmd.slice(7), _execNextScript);
 
   } else if (cmd.startsWith('call ')) {
-    // Appel d'un script sauvegardé par l'utilisateur courant uniquement
+    // Appel d'un script sauvegardé — async (Supabase)
     const name = cmd.slice(5).trim().toLowerCase();
-    const userScripts = Persistence.getUserScripts('high');
-    const found = userScripts.find(s => s.name.toLowerCase() === name);
-    if (found && found.code) {
-      const sub = found.code.split('\n').map(l => l.replace(/#.*$/, '').trim()).filter(l => l);
-      _scriptQueue.unshift(...sub);
-      termLog(`[script] call "${found.name}" — ${sub.length} instruction(s) injectée(s)`, 'info');
-    } else {
-      termLog(`[script] call: script introuvable — "${name}"`, 'err');
-      termLog('[script] Vérifiez vos scripts sauvegardés (Scripts > liste)', 'dim');
-    }
-    _execNextScript();
+    (async () => {
+      const userScripts = await Persistence.getUserScripts('high');
+      const found = userScripts.find(s => s.name.toLowerCase() === name);
+      if (found && found.code) {
+        const sub = found.code.split('\n').map(l => l.replace(/#.*$/, '').trim()).filter(l => l);
+        _scriptQueue.unshift(...sub);
+        termLog(`[script] call "${found.name}" — ${sub.length} instruction(s) injectée(s)`, 'info');
+      } else {
+        termLog(`[script] call: script introuvable — "${name}"`, 'err');
+        termLog('[script] Vérifiez vos scripts sauvegardés (Scripts > liste)', 'dim');
+      }
+      _execNextScript();
+    })();
+    return; // _execNextScript() sera appelé depuis l'IIFE async ci-dessus
 
   } else {
     handleCommand(cmd);

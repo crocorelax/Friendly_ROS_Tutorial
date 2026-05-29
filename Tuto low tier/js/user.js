@@ -96,14 +96,7 @@ function getUnlockedLevel() {
 function unlockNextLevel(current) {
   const next = current + 1;
   if (next > 3) return;
-  const s = Auth.getSession();
-  if (!s) return;
-  const users = Storage.getUsers();
-  const u = users[s.username.toLowerCase()];
-  if (!u) return;
-  if (!u.progress) u.progress = { lowUnlocked: 1 };
-  if ((u.progress.lowUnlocked || 1) < next) u.progress.lowUnlocked = next;
-  Storage.setUsers(users);
+  Auth.unlockLevel('low', next); // async fire-and-forget
 }
 
 function updateMenuCards() {

@@ -1,117 +1,161 @@
 // ════════════════════════════════════════════════════════════
-// PERSISTENCE — sauvegarde/chargement maps & scripts
-// Dépend de : storage.js, auth.js
-// API stable : remplacer les corps par des appels REST pour migrer vers DB
+// PERSISTENCE — sauvegarde/chargement maps & scripts (Supabase)
+// Dépend de : supabase-client.js, auth.js
+// Toutes les fonctions sont async (retournent des Promises).
 // ════════════════════════════════════════════════════════════
 
 const Persistence = (() => {
-  const _uid    = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  const _user   = () => { const s = Auth.getSession(); return s ? s.username.toLowerCase() : null; };
-  const _isAdmin = () => Auth.isAdmin();
+  const _uid  = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const _uname = () => Auth.getCurrentUser()?.username || null;
+
+  async function _sess() {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session;
+  }
 
   // ══ MAPS ══════════════════════════════════════════════════
 
-  function saveMap(name, rawMapData) {
-    const user = _user();
-    if (!user) return null;
-    const maps = Storage.getMaps(user);
-    const idx  = maps.findIndex(m => m.name === name);
-    const entry = {
-      id:        idx >= 0 ? maps[idx].id : _uid(),
-      name:      name.trim(),
-      createdBy: user,
-      createdAt: idx >= 0 ? maps[idx].createdAt : new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      data: {
-        walls: [...rawMapData.walls],
-        goals: rawMapData.goals.map(g => ({ col: g.col, row: g.row })),
-        spawn: { col: rawMapData.spawn.col, row: rawMapData.spawn.row },
-      },
+  async function saveMap(name, rawMapData) {
+    const sess = await _sess();
+    if (!sess) return null;
+
+    const payload = {
+      walls: [...rawMapData.walls],
+      goals: rawMapData.goals.map(g => ({ col: g.col, row: g.row })),
+      spawn: { col: rawMapData.spawn.col, row: rawMapData.spawn.row },
     };
-    if (idx >= 0) maps[idx] = entry; else maps.push(entry);
-    Storage.setMaps(user, maps);
-    return entry;
+
+    // Vérifie si une map du même nom existe déjà pour cet utilisateur
+    const { data: existing } = await supabase
+      .from('maps')
+      .select('id, created_at')
+      .eq('user_id', sess.user.id)
+      .eq('name', name.trim())
+      .maybeSingle();
+
+    const entry = {
+      id:         existing?.id || _uid(),
+      name:       name.trim(),
+      user_id:    sess.user.id,
+      username:   _uname(),
+      data:       payload,
+      updated_at: new Date().toISOString(),
+      ...(existing ? {} : { created_at: new Date().toISOString() }),
+    };
+
+    const { error } = existing
+      ? await supabase.from('maps').update(entry).eq('id', existing.id)
+      : await supabase.from('maps').insert(entry);
+
+    return error ? null : entry;
   }
 
-  function getUserMaps() {
-    const user = _user();
-    return user ? Storage.getMaps(user) : [];
+  async function getUserMaps() {
+    const sess = await _sess();
+    if (!sess) return [];
+    const { data } = await supabase
+      .from('maps')
+      .select('*')
+      .eq('user_id', sess.user.id)
+      .order('updated_at', { ascending: false });
+    return data || [];
   }
 
-  function getAllMaps() {
-    return Object.keys(Storage.getUsers()).flatMap(u =>
-      Storage.getMaps(u).map(m => ({ ...m, owner: u }))
-    );
+  async function getAllMaps() {
+    const { data } = await supabase
+      .from('maps')
+      .select('*')
+      .order('updated_at', { ascending: false });
+    return data || [];
   }
 
-  function deleteMap(id, owner) {
-    const target = (owner || _user() || '').toLowerCase();
-    if (!target) return;
-    Storage.setMaps(target, Storage.getMaps(target).filter(m => m.id !== id));
+  async function deleteMap(id) {
+    await supabase.from('maps').delete().eq('id', id);
   }
 
   // ══ SCRIPTS LOW TIER (blocs) ═══════════════════════════════
 
-  function saveScript(name, level, blocks) {
-    const user = _user();
-    if (!user) return null;
-    const scripts = Storage.getScripts(user);
-    const idx = scripts.findIndex(s => s.name === name && s.tier === 'low');
+  async function saveScript(name, level, blocks) {
+    const sess = await _sess();
+    if (!sess) return null;
+
+    const { data: existing } = await supabase
+      .from('scripts')
+      .select('id, created_at')
+      .eq('user_id', sess.user.id)
+      .eq('name', name.trim())
+      .eq('tier', 'low')
+      .maybeSingle();
+
     const entry = {
-      id:        idx >= 0 ? scripts[idx].id : _uid(),
-      name:      name.trim(),
-      tier:      'low',
+      id:         existing?.id || _uid(),
+      name:       name.trim(),
+      tier:       'low',
       level,
-      createdBy: user,
-      createdAt: idx >= 0 ? scripts[idx].createdAt : new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      user_id:    sess.user.id,
+      username:   _uname(),
       blocks,
+      updated_at: new Date().toISOString(),
+      ...(existing ? {} : { created_at: new Date().toISOString() }),
     };
-    if (idx >= 0) scripts[idx] = entry; else scripts.push(entry);
-    Storage.setScripts(user, scripts);
-    return entry;
+
+    const { error } = existing
+      ? await supabase.from('scripts').update(entry).eq('id', existing.id)
+      : await supabase.from('scripts').insert(entry);
+
+    return error ? null : entry;
   }
 
-  function getUserScripts(tier) {
-    const user = _user();
-    if (!user) return [];
-    const all = Storage.getScripts(user);
-    return tier ? all.filter(s => s.tier === tier) : all;
+  async function getUserScripts(tier) {
+    const sess = await _sess();
+    if (!sess) return [];
+    let q = supabase.from('scripts').select('*').eq('user_id', sess.user.id);
+    if (tier) q = q.eq('tier', tier);
+    const { data } = await q.order('updated_at', { ascending: false });
+    return data || [];
   }
 
-  function getAllScripts(tier) {
-    return Object.keys(Storage.getUsers()).flatMap(u =>
-      Storage.getScripts(u)
-        .filter(s => !tier || s.tier === tier)
-        .map(s => ({ ...s, owner: u }))
-    );
+  async function getAllScripts(tier) {
+    let q = supabase.from('scripts').select('*');
+    if (tier) q = q.eq('tier', tier);
+    const { data } = await q.order('updated_at', { ascending: false });
+    return data || [];
   }
 
-  function deleteScript(id, owner) {
-    const target = (owner || _user() || '').toLowerCase();
-    if (!target) return;
-    Storage.setScripts(target, Storage.getScripts(target).filter(s => s.id !== id));
+  async function deleteScript(id) {
+    await supabase.from('scripts').delete().eq('id', id);
   }
 
   // ══ SCRIPTS HIGH TIER (code texte) ════════════════════════
 
-  function saveHighScript(name, code) {
-    const user = _user();
-    if (!user) return null;
-    const scripts = Storage.getScripts(user);
-    const idx = scripts.findIndex(s => s.name === name && s.tier === 'high');
+  async function saveHighScript(name, code) {
+    const sess = await _sess();
+    if (!sess) return null;
+
+    const { data: existing } = await supabase
+      .from('scripts')
+      .select('id, created_at')
+      .eq('user_id', sess.user.id)
+      .eq('name', name.trim())
+      .eq('tier', 'high')
+      .maybeSingle();
+
     const entry = {
-      id:        idx >= 0 ? scripts[idx].id : _uid(),
-      name:      name.trim(),
-      tier:      'high',
-      createdBy: user,
-      createdAt: idx >= 0 ? scripts[idx].createdAt : new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      id:         existing?.id || _uid(),
+      name:       name.trim(),
+      tier:       'high',
+      user_id:    sess.user.id,
+      username:   _uname(),
       code,
+      updated_at: new Date().toISOString(),
+      ...(existing ? {} : { created_at: new Date().toISOString() }),
     };
-    if (idx >= 0) scripts[idx] = entry; else scripts.push(entry);
-    Storage.setScripts(user, scripts);
-    return entry;
+
+    const { error } = existing
+      ? await supabase.from('scripts').update(entry).eq('id', existing.id)
+      : await supabase.from('scripts').insert(entry);
+
+    return error ? null : entry;
   }
 
   return {

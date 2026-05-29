@@ -1,14 +1,15 @@
 // ════════════════════════════════════════════════════════════
-// LOGIQUE DU MENU PLATEFORME
-// Dépend de : storage.js, auth.js
+// LOGIQUE DU MENU PLATEFORME — version Supabase (async)
+// Dépend de : supabase-client.js, storage.js, auth.js
 // ════════════════════════════════════════════════════════════
 
 let _currentTab = 'low';
 
-document.addEventListener('DOMContentLoaded', () => {
-  Auth.init();
+document.addEventListener('DOMContentLoaded', async () => {
+  // Restaure la session Supabase et peuple le cache Auth._profile
+  try { await Auth.init(); } catch (e) { console.error('[auth] Init error', e); }
 
-  // Raccourcis clavier login
+  // Raccourcis clavier login / inscription
   ['loginPass', 'loginUser'].forEach(id =>
     document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); })
   );
@@ -23,16 +24,16 @@ document.addEventListener('DOMContentLoaded', () => {
 // ── Navigation entre écrans ─────────────────────────────
 
 function showLogin() {
-  document.getElementById('loginPanel').style.display   = 'flex';
+  document.getElementById('loginPanel').style.display    = 'flex';
   document.getElementById('registerPanel').style.display = 'none';
-  document.getElementById('loginError').textContent = '';
+  document.getElementById('loginError').textContent      = '';
   setTimeout(() => document.getElementById('loginUser').focus(), 50);
 }
 
 function showRegister() {
-  document.getElementById('loginPanel').style.display   = 'none';
+  document.getElementById('loginPanel').style.display    = 'none';
   document.getElementById('registerPanel').style.display = 'flex';
-  document.getElementById('regError').textContent = '';
+  document.getElementById('regError').textContent        = '';
   setTimeout(() => document.getElementById('regUser').focus(), 50);
 }
 
@@ -40,8 +41,8 @@ function showMenu() {
   document.getElementById('authScreen').classList.remove('active');
   document.getElementById('menuScreen').classList.add('active');
   _renderUserInfo();
-  // Synchronise l'onglet actif avec les boutons
-  ['tabLow','tabHigh','tabCombined'].forEach(id => {
+  // Synchronise l'onglet actif
+  ['tabLow', 'tabHigh', 'tabCombined'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.remove('active');
   });
@@ -49,15 +50,22 @@ function showMenu() {
     _currentTab === 'low' ? 'tabLow' : _currentTab === 'high' ? 'tabHigh' : 'tabCombined'
   );
   if (activeTab) activeTab.classList.add('active');
-  renderLeaderboard(_currentTab);
+  renderLeaderboard(_currentTab); // async, fire-and-forget
 }
 
-// ── Handlers auth ───────────────────────────────────────
+// ── Handlers auth (async) ────────────────────────────────
 
-function handleLogin() {
+async function handleLogin() {
+  const btn = document.querySelector('#loginPanel .btn-primary');
+  if (btn) btn.disabled = true;
+  document.getElementById('loginError').textContent = '';
+
   const username = document.getElementById('loginUser').value.trim();
   const password = document.getElementById('loginPass').value;
-  const r = Auth.login(username, password);
+  const r = await Auth.login(username, password);
+
+  if (btn) btn.disabled = false;
+
   if (r.ok) {
     document.getElementById('loginUser').value = '';
     document.getElementById('loginPass').value = '';
@@ -68,18 +76,27 @@ function handleLogin() {
   }
 }
 
-function handleRegister() {
+async function handleRegister() {
+  const btn = document.querySelector('#registerPanel .btn-primary');
+  if (btn) btn.disabled = true;
+  document.getElementById('regError').textContent = '';
+
   const username = document.getElementById('regUser').value.trim();
   const password = document.getElementById('regPass').value;
   const confirm  = document.getElementById('regPass2').value;
+
   if (password !== confirm) {
     document.getElementById('regError').textContent = 'Les mots de passe ne correspondent pas';
+    if (btn) btn.disabled = false;
     return;
   }
-  const r = Auth.register(username, password);
+
+  const r = await Auth.register(username, password);
+  if (btn) btn.disabled = false;
+
   if (r.ok) {
-    document.getElementById('regUser').value = '';
-    document.getElementById('regPass').value = '';
+    document.getElementById('regUser').value  = '';
+    document.getElementById('regPass').value  = '';
     document.getElementById('regPass2').value = '';
     showMenu();
   } else {
@@ -87,14 +104,14 @@ function handleRegister() {
   }
 }
 
-function handleLogout() {
-  Auth.logout();
+async function handleLogout() {
+  await Auth.logout();
   document.getElementById('menuScreen').classList.remove('active');
   document.getElementById('authScreen').classList.add('active');
   showLogin();
 }
 
-// ── Affichage utilisateur ───────────────────────────────
+// ── Affichage utilisateur ────────────────────────────────
 
 function _renderUserInfo() {
   const user = Auth.getCurrentUser();
@@ -115,7 +132,6 @@ function _renderUserInfo() {
   if (user.role === 'admin') roleEl.classList.add('admin');
   else                       roleEl.classList.remove('admin');
 
-  // Scores du joueur courant (cachés pour admin)
   const scoresEl = document.getElementById('ptScores');
   if (user.role !== 'admin' && scoresEl) {
     const sc = user.scores || {};
@@ -129,7 +145,7 @@ function _renderUserInfo() {
     user.role === 'admin' ? 'flex' : 'none';
 }
 
-// ── Classement ──────────────────────────────────────────
+// ── Classement (async) ───────────────────────────────────
 
 function switchTab(tier) {
   _currentTab = tier;
@@ -139,10 +155,15 @@ function switchTab(tier) {
   renderLeaderboard(tier);
 }
 
-function renderLeaderboard(tier) {
-  const entries = Auth.getLeaderboard(tier);
+async function renderLeaderboard(tier) {
+  const body = document.getElementById('lbBody');
+  body.innerHTML = '<div class="lb-empty">Chargement…</div>';
+
+  let entries;
+  try { entries = await Auth.getLeaderboard(tier); }
+  catch (e) { body.innerHTML = '<div class="lb-empty">Erreur réseau — réessaie.</div>'; return; }
+
   const session = Auth.getSession();
-  const body    = document.getElementById('lbBody');
 
   if (!entries.length) {
     body.innerHTML = '<div class="lb-empty">Aucun score pour l\'instant — lance-toi !</div>';
@@ -150,7 +171,7 @@ function renderLeaderboard(tier) {
   }
 
   const rankCls  = i => i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
-  const rankIcon = i => i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+  const rankIcon = i => i === 0 ? '🥇'   : i === 1 ? '🥈'     : i === 2 ? '🥉'    : `${i + 1}.`;
   const isMe     = e => e.username === session?.username;
 
   if (tier === 'combined') {
@@ -171,7 +192,7 @@ function renderLeaderboard(tier) {
   }
 }
 
-// ── Navigation vers les tiers ───────────────────────────
+// ── Navigation vers les tiers ────────────────────────────
 
 function goToTier(tier) {
   const path = tier === 'low'
@@ -184,13 +205,13 @@ function goToDashboard() {
   window.location.href = 'Robot Dashboard/index.html';
 }
 
-// ── Panel Admin ─────────────────────────────────────────
+// ── Panel Admin ──────────────────────────────────────────
 
 function openAdminPanel() {
   if (!Auth.isAdmin()) return;
-  _renderAdminPanel();
   document.getElementById('adminOverlay').style.display = 'block';
   document.getElementById('adminPanel').classList.add('open');
+  _renderAdminPanel();
 }
 
 function closeAdminPanel() {
@@ -198,24 +219,37 @@ function closeAdminPanel() {
   document.getElementById('adminPanel').classList.remove('open');
 }
 
-function _renderAdminPanel() {
-  const users   = Storage.getUsers();
-  const players = Object.values(users).filter(u => u.role === 'player');
+async function _renderAdminPanel() {
+  const content = document.getElementById('adminContent');
+  content.innerHTML = '<p style="font-size:12px;color:var(--muted);padding:8px 10px">Chargement…</p>';
 
-  const scriptCount = u => {
-    const all = Storage.getScripts(u.username.toLowerCase());
-    return all.filter(s => !s.isExample).length;
-  };
+  let players, allScripts;
+  try {
+    [players, allScripts] = await Promise.all([
+      Auth.getAllUsers(),
+      supabase.from('scripts').select('username, is_example'),
+    ]);
+    allScripts = allScripts.data || [];
+  } catch (e) {
+    content.innerHTML = '<p style="font-size:12px;color:var(--red);padding:8px 10px">Erreur réseau.</p>';
+    return;
+  }
+
+  // Compte de scripts (non-exemple) par username
+  const scriptCounts = {};
+  allScripts.forEach(s => {
+    if (!s.is_example) scriptCounts[s.username] = (scriptCounts[s.username] || 0) + 1;
+  });
 
   const rows = players.length
     ? players.map(u => `
         <div class="admin-user-row">
           <span class="aur-name">${u.username}</span>
           <span class="aur-lives">❤️ ${u.lives}</span>
-          <span class="aur-score">Low: ${(u.scores||{}).low||0} · High: ${(u.scores||{}).high||0} pts</span>
-          <span class="aur-scripts">📄 ${scriptCount(u)}</span>
+          <span class="aur-score">Low: ${u.score_low || 0} · High: ${u.score_high || 0} pts</span>
+          <span class="aur-scripts">📄 ${scriptCounts[u.username] || 0}</span>
           <div class="aur-actions">
-            <button class="aur-btn" onclick="adminResetLives('${u.username}')"   title="Redonner 3 vies">❤️ Vies</button>
+            <button class="aur-btn" onclick="adminResetLives('${u.username}')"        title="Redonner 3 vies">❤️ Vies</button>
             <button class="aur-btn" onclick="adminResetScore('${u.username}','low')"  title="Reset score Low">↺ Low</button>
             <button class="aur-btn" onclick="adminResetScore('${u.username}','high')" title="Reset score High">↺ High</button>
             <button class="aur-btn aur-btn-del" onclick="adminDeleteUser('${u.username}')" title="Supprimer le compte">✕</button>
@@ -224,7 +258,7 @@ function _renderAdminPanel() {
       .join('')
     : '<p style="font-size:12px;color:var(--muted);padding:4px 10px">Aucun joueur inscrit.</p>';
 
-  document.getElementById('adminContent').innerHTML = `
+  content.innerHTML = `
     <div class="admin-section">
       <h4>Joueurs (${players.length})</h4>
       ${rows}
@@ -239,67 +273,63 @@ function _renderAdminPanel() {
     </div>`;
 }
 
-function adminResetLives(username) {
-  Auth.restoreLives(username, 3);
+async function adminResetLives(username) {
+  await Auth.restoreLives(username, 3);
   _renderAdminPanel();
 }
 
-function adminRestoreAllLives() {
+async function adminRestoreAllLives() {
   if (!confirm('Redonner 3 vies à tous les joueurs ?')) return;
-  const users = Storage.getUsers();
-  Object.values(users).forEach(u => { if (u.role === 'player') u.lives = 3; });
-  Storage.setUsers(users);
+  await supabase.from('profiles').update({ lives: 3 }).eq('role', 'player');
   _renderAdminPanel();
 }
 
-function adminResetScore(username, tier) {
+async function adminResetScore(username, tier) {
   if (!confirm(`Remettre le score ${tier.toUpperCase()} de ${username} à 0 ?`)) return;
-  const users = Storage.getUsers();
-  const u = users[username.toLowerCase()];
-  if (!u) return;
-  u.scores = u.scores || { low: 0, high: 0 };
-  u.scores[tier] = 0;
-  Storage.setUsers(users);
+  const col = tier === 'low' ? 'score_low' : 'score_high';
+  await supabase.from('profiles').update({ [col]: 0 }).eq('username', username.toLowerCase());
   _renderAdminPanel();
   renderLeaderboard(_currentTab);
 }
 
-function adminDeleteUser(username) {
-  if (!confirm(`Supprimer le compte "${username}" et tous ses scripts ? Cette action est irréversible.`)) return;
-  const users = Storage.getUsers();
-  delete users[username.toLowerCase()];
-  Storage.setUsers(users);
-  // Supprimer aussi ses scripts et maps
-  Storage.setScripts(username.toLowerCase(), []);
-  Storage.setMaps(username.toLowerCase(), []);
+async function adminDeleteUser(username) {
+  if (!confirm(
+    `Supprimer le compte "${username}" et toutes ses maps/scripts ?\n\n` +
+    `Note : les identifiants Supabase Auth restent — pour suppression complète, ` +
+    `utilise le dashboard Supabase (Authentication → Users).`
+  )) return;
+  const { error } = await supabase
+    .from('profiles')
+    .delete()
+    .eq('username', username.toLowerCase());
+  if (error) { alert('Erreur: ' + error.message); return; }
   _renderAdminPanel();
   renderLeaderboard(_currentTab);
 }
 
-function adminResetAllScores() {
+async function adminResetAllScores() {
   if (!confirm('Remettre TOUS les scores à 0 ?')) return;
-  const users = Storage.getUsers();
-  Object.values(users).forEach(u => { if (u.role === 'player') u.scores = { low: 0, high: 0 }; });
-  Storage.setUsers(users);
+  await supabase.from('profiles').update({ score_low: 0, score_high: 0 }).eq('role', 'player');
   _renderAdminPanel();
   renderLeaderboard(_currentTab);
 }
 
-function adminExportData() {
+async function adminExportData() {
+  const [profilesRes, scriptsRes, mapsRes] = await Promise.all([
+    supabase.from('profiles').select('*'),
+    supabase.from('scripts').select('*'),
+    supabase.from('maps').select('*'),
+  ]);
   const payload = {
     exportedAt: new Date().toISOString(),
-    users: Storage.getUsers(),
-    scripts: Object.fromEntries(
-      Object.keys(Storage.getUsers()).map(u => [u, Storage.getScripts(u)])
-    ),
-    maps: Object.fromEntries(
-      Object.keys(Storage.getUsers()).map(u => [u, Storage.getMaps(u)])
-    ),
+    profiles:   profilesRes.data || [],
+    scripts:    scriptsRes.data  || [],
+    maps:       mapsRes.data     || [],
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const a = Object.assign(document.createElement('a'), {
     href: URL.createObjectURL(blob),
-    download: `bipboup_export_${new Date().toISOString().slice(0,10)}.json`,
+    download: `bipboup_export_${new Date().toISOString().slice(0, 10)}.json`,
   });
   a.click();
 }
