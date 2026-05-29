@@ -8,8 +8,9 @@
 const SUPABASE_URL      = 'https://azzzgmuxkxhixnrhzxnp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_G2vGBu2IjcjNk8RmnI1_NQ_sCNuuBeu';
 
-// SDK chargé via CDN dans chaque HTML (window.supabase)
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+// Le CDN UMD expose window.supabase = { createClient, ... }
+// On remplace par l'instance client — tous les scripts utilisent window.supabase
+window.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     persistSession:   true,
     autoRefreshToken: true,
