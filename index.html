@@ -110,6 +110,35 @@
       </div>
     </div>
 
+    <!-- ── Outils pédagogiques ── -->
+    <div style="width:100%;max-width:960px;margin:0 auto">
+      <div style="font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted,#64748b);font-family:'JetBrains Mono',monospace;margin-bottom:10px;padding-left:4px">SIMULATEURS PÉDAGOGIQUES</div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap">
+        <div class="tier-card" style="flex:1;min-width:220px" onclick="window.location.href='bipboup_pathfinding.html'">
+          <div class="tc-icon">🗺️</div>
+          <div class="tc-label">OUTIL · ALGORITHMES</div>
+          <h2>Visualiseur Pathfinding</h2>
+          <p>Visualise A★, Dijkstra, BFS et DFS en temps réel. Dessine tes propres labyrinthes et compare les algorithmes.</p>
+          <div class="tc-tags">
+            <span class="tc-tag tag-green">A★</span>
+            <span class="tc-tag tag-blue">Dijkstra</span>
+            <span class="tc-tag tag-purple">BFS · DFS</span>
+          </div>
+        </div>
+        <div class="tier-card" style="flex:1;min-width:220px" onclick="window.location.href='bipboup_sensor_fusion.html'">
+          <div class="tc-icon">📡</div>
+          <div class="tc-label">OUTIL · CAPTEURS</div>
+          <h2>Fusion de Capteurs</h2>
+          <p>Comprends comment BipBoup combine LiDAR et odométrie. Simule des pannes, joue avec les pondérations Kalman.</p>
+          <div class="tc-tags">
+            <span class="tc-tag tag-green">LiDAR</span>
+            <span class="tc-tag tag-blue">Odométrie</span>
+            <span class="tc-tag tag-orange">Kalman</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ── Bouton admin (caché pour les joueurs) ── -->
     <div id="adminSection" style="display:none">
       <button class="btn-admin" onclick="openAdminPanel()">⚙ Panel Admin</button>

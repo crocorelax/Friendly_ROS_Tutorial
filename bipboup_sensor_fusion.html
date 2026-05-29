@@ -1,0 +1,1569 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BipBoup · Fusion de Capteurs</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Nunito:wght@600;700;800;900&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0b0d11;--panel:#111520;--panel2:#161b26;--border:#1e2535;--border2:#252f42;
+  --green:#00d68f;--red:#ef4444;--yellow:#eab308;--blue:#38bdf8;
+  --orange:#f97316;--purple:#a78bfa;--cyan:#22d3ee;--pink:#f472b6;
+  --text:#c9d1e0;--muted:#4a5568;
+  --mono:'JetBrains Mono',monospace;--sans:'Nunito',sans-serif;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);overflow:hidden;font-family:var(--sans)}
+
+.app{height:100vh;display:grid;grid-template-rows:48px 1fr 32px}
+.topbar{background:#070910;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:10px;flex-shrink:0;flex-wrap:nowrap}
+.bottombar{background:#070910;border-top:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:14px;flex-shrink:0;flex-wrap:nowrap}
+
+.tb-dots{display:flex;gap:5px}
+.tb-dot{width:10px;height:10px;border-radius:50%}
+.tb-brand{font-size:12px;font-weight:900;letter-spacing:3px;font-family:var(--mono);color:var(--green)}
+.tb-brand em{color:var(--muted);font-style:normal}
+.tb-title{font-size:11px;color:var(--muted);font-family:var(--mono);white-space:nowrap}
+.tb-sep{width:1px;height:14px;background:var(--border2);flex-shrink:0}
+.top-actions{margin-left:auto;display:flex;gap:6px;align-items:center;flex-shrink:0}
+
+.btn{border:none;border-radius:8px;padding:6px 14px;font-family:var(--sans);font-weight:800;font-size:12px;cursor:pointer;transition:.15s;white-space:nowrap}
+.btn-green{background:var(--green);color:#000}
+.btn-green:hover{filter:brightness(1.1)}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border);font-size:11px;padding:5px 10px}
+.btn-ghost:hover{color:var(--text);border-color:var(--muted)}
+.btn-red{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.3);font-size:11px;padding:5px 10px}
+.btn-red:hover{background:rgba(239,68,68,.25)}
+.chip{background:var(--panel2);border:1px solid var(--border);border-radius:20px;padding:3px 12px;font-size:11px;font-family:var(--mono);color:var(--muted)}
+.chip.ok{color:var(--green);border-color:rgba(0,214,143,.4)}
+.chip.err{color:var(--red);border-color:rgba(239,68,68,.4)}
+.chip.warn{color:var(--yellow);border-color:rgba(234,179,8,.4)}
+
+/* MAIN LAYOUT */
+.content{display:grid;grid-template-columns:1fr 310px;min-height:0;overflow:hidden}
+
+/* VIEWS */
+.sim-area{display:grid;grid-template-rows:1fr 1fr;gap:1px;background:var(--border);min-height:0;overflow:hidden}
+.view{background:var(--panel);display:flex;flex-direction:column;min-height:0;position:relative;overflow:hidden}
+.view-head{background:var(--panel2);border-bottom:1px solid var(--border);padding:5px 12px;display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap}
+.vh-icon{font-size:13px}
+.vh-title{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;font-family:var(--mono)}
+.vh-badge{font-size:9px;padding:1px 7px;border-radius:3px;font-weight:700}
+.view canvas{flex:1;display:block;min-height:0;width:100%}
+
+.view-split{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);min-height:0}
+.sub-view{background:var(--panel);display:flex;flex-direction:column;min-height:0;overflow:hidden}
+
+/* SIDEBAR */
+.sidebar{background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden}
+.sb-section{padding:10px 12px;border-bottom:1px solid var(--border);flex-shrink:0}
+.sb-title{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);font-family:var(--mono);margin-bottom:8px}
+
+/* Mode tabs */
+.mode-tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:4px}
+.mode-tab{padding:8px;border-radius:8px;border:1.5px solid var(--border2);background:var(--panel2);color:var(--muted);font-size:12px;font-weight:800;cursor:pointer;text-align:center;transition:.15s;font-family:var(--sans)}
+.mode-tab:hover{color:var(--text)}
+.mode-tab.active{border-color:var(--cyan);color:var(--cyan);background:rgba(34,211,238,.08)}
+
+/* Sensor block */
+.sensor-block{border-radius:8px;padding:9px;margin-bottom:7px;border:1.5px solid}
+.sensor-odom{background:rgba(167,139,250,.05);border-color:rgba(167,139,250,.25)}
+.sensor-lidar{background:rgba(0,214,143,.05);border-color:rgba(0,214,143,.25)}
+.sensor-gyro{background:rgba(234,179,8,.05);border-color:rgba(234,179,8,.25)}
+.sensor-uwb{background:rgba(34,211,238,.05);border-color:rgba(34,211,238,.25)}
+.sensor-header{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.sensor-name{font-size:12px;font-weight:900;flex:1}
+.sensor-toggle{width:28px;height:16px;border-radius:8px;cursor:pointer;transition:.2s;position:relative;flex-shrink:0;border:none;outline:none}
+.sensor-toggle.on{background:var(--green)}
+.sensor-toggle.off{background:var(--border2)}
+.sensor-toggle::after{content:'';position:absolute;width:12px;height:12px;border-radius:50%;background:#fff;top:2px;transition:.2s}
+.sensor-toggle.on::after{left:14px}
+.sensor-toggle.off::after{left:2px}
+
+/* Slider rows */
+.slider-row{margin:5px 0;display:flex;align-items:center;gap:7px}
+.slider-label{font-size:10px;color:var(--muted);width:90px;flex-shrink:0;font-family:var(--mono)}
+input[type=range]{-webkit-appearance:none;height:4px;background:var(--border2);border-radius:2px;outline:none;flex:1;min-width:0}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--green);cursor:pointer}
+.slider-val{font-size:10px;font-weight:700;font-family:var(--mono);min-width:32px;text-align:right}
+
+/* Error cards */
+.error-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.error-card{background:var(--panel2);border:1px solid var(--border);border-radius:6px;padding:5px 8px;text-align:center}
+.ec-val{font-size:16px;font-weight:900;font-family:var(--mono)}
+.ec-label{font-size:8px;color:var(--muted);letter-spacing:.4px;margin-top:1px}
+
+/* Fault buttons */
+.fault-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.fault-btn{border-radius:6px;padding:6px 7px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid var(--border2);background:var(--panel2);color:var(--muted);transition:.15s;font-family:var(--sans);text-align:center}
+.fault-btn:hover{border-color:var(--orange);color:var(--orange)}
+.fault-btn.active{border-color:var(--red);color:var(--red);background:rgba(239,68,68,.08)}
+
+/* Scenario buttons */
+.scenario-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.scenario-btn{border-radius:6px;padding:6px 7px;font-size:10px;font-weight:700;cursor:pointer;border:1.5px solid var(--border2);background:var(--panel2);color:var(--muted);transition:.15s;font-family:var(--sans);text-align:left}
+.scenario-btn:hover{border-color:var(--blue);color:var(--blue)}
+.scenario-btn.active{border-color:var(--blue);color:var(--blue);background:rgba(56,189,248,.08)}
+
+/* Kalman bar */
+.kalman-bar-wrap{background:var(--border2);border-radius:4px;height:8px;overflow:hidden;margin:4px 0}
+.kalman-bar-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--purple),var(--cyan));transition:.3s}
+
+/* Explanation */
+.expl-box{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:10px;margin:8px 12px}
+.expl-title{font-size:11px;font-weight:900;color:var(--blue);margin-bottom:5px}
+.expl-body{font-size:11px;color:var(--text);line-height:1.6}
+.expl-body b{color:var(--yellow)}
+.tag{display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700;font-family:var(--mono)}
+.tag-odom{background:rgba(167,139,250,.15);color:var(--purple)}
+.tag-lidar{background:rgba(0,214,143,.15);color:var(--green)}
+.tag-gyro{background:rgba(234,179,8,.15);color:var(--yellow)}
+.tag-uwb{background:rgba(34,211,238,.15);color:var(--cyan)}
+.tag-fusion{background:rgba(249,115,22,.15);color:var(--orange)}
+
+/* ROS panel */
+.ros-panel{display:none}
+.ros-panel.visible{display:block}
+.sim-panel{display:none}
+.sim-panel.visible{display:block}
+.ws-input{width:100%;background:var(--panel2);border:1px solid var(--border2);border-radius:6px;padding:5px 9px;color:var(--text);font-family:var(--mono);font-size:11px;outline:none;margin-bottom:6px}
+.ws-input:focus{border-color:var(--cyan)}
+.conn-status{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--panel2);margin-bottom:6px}
+.conn-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.topic-health{display:flex;flex-direction:column;gap:3px}
+.topic-row{display:flex;align-items:center;gap:6px;font-size:10px;font-family:var(--mono)}
+.topic-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+
+/* Bottom bar */
+.bb-item{font-size:10px;font-family:var(--mono);color:var(--muted);white-space:nowrap}
+.bb-item span{color:var(--text)}
+.bb-sep{width:1px;height:12px;background:var(--border2);flex-shrink:0}
+
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+</style>
+</head>
+<body>
+<script src="shared/storage.js"></script>
+<script src="shared/auth.js"></script>
+<script>(function(){try{var s=JSON.parse(localStorage.getItem('bipboup_session'));if(!s||!s.username)throw 0;}catch(e){window.location.replace('index.html');}})()</script>
+
+<div class="app">
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="tb-dots">
+      <div class="tb-dot" style="background:#ef4444"></div>
+      <div class="tb-dot" style="background:#eab308"></div>
+      <div class="tb-dot" style="background:#22c55e"></div>
+    </div>
+    <a href="index.html" style="font-size:11px;font-family:var(--mono);color:var(--muted);text-decoration:none;border:1px solid var(--border);border-radius:6px;padding:3px 10px;transition:.15s;white-space:nowrap" onmouseover="this.style.color='var(--green)';this.style.borderColor='var(--green)'" onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">← Plateforme</a>
+    <div class="tb-brand">BIP<em>BOUP</em></div>
+    <div class="tb-sep"></div>
+    <div class="tb-title">Fusion de Capteurs — Odom · LiDAR · IMU · UWB</div>
+    <div class="top-actions">
+      <button class="btn btn-ghost" id="btnPause" onclick="togglePause()">⏸ Pause</button>
+      <button class="btn btn-ghost" onclick="resetSim()">↺ Reset</button>
+      <button class="btn btn-red" onclick="triggerKidnap()" title="Téléporte le robot — seul le LiDAR peut le retrouver">🫳 Kidnap</button>
+      <div class="chip" id="chip">Simulation en cours</div>
+    </div>
+  </div>
+
+  <!-- CONTENT -->
+  <div class="content">
+    <!-- LEFT VIEWS -->
+    <div class="sim-area">
+      <!-- TOP: overview -->
+      <div class="view">
+        <div class="view-head">
+          <span class="vh-icon">🗺</span>
+          <span class="vh-title" style="color:var(--text)">Vue d'ensemble + Ellipses de covariance</span>
+          <div style="margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <span style="font-size:10px;font-family:var(--mono);color:var(--blue)">— Vérité</span>
+            <span style="font-size:10px;font-family:var(--mono);color:var(--purple)">● Odom</span>
+            <span style="font-size:10px;font-family:var(--mono);color:var(--green)">● LiDAR</span>
+            <span style="font-size:10px;font-family:var(--mono);color:var(--yellow)">● IMU</span>
+            <span style="font-size:10px;font-family:var(--mono);color:var(--cyan)">◆ UWB</span>
+            <span style="font-size:10px;font-family:var(--mono);color:var(--orange)">● Fusion</span>
+          </div>
+        </div>
+        <canvas id="overviewCanvas"></canvas>
+      </div>
+
+      <!-- BOTTOM: lidar scan + error graphs -->
+      <div class="view-split">
+        <!-- LiDAR scan view -->
+        <div class="sub-view">
+          <div class="view-head">
+            <span class="vh-icon">📡</span>
+            <span class="vh-title" style="color:var(--green)">LiDAR — Scan 360°</span>
+            <span class="vh-badge" style="background:rgba(0,214,143,.15);color:var(--green);margin-left:auto">RAYS</span>
+          </div>
+          <canvas id="lidarCanvas"></canvas>
+        </div>
+        <!-- Temporal error graph -->
+        <div class="sub-view" style="border-left:1px solid var(--border)">
+          <div class="view-head">
+            <span class="vh-icon">📊</span>
+            <span class="vh-title" style="color:var(--orange)">Erreurs vs Vérité terrain</span>
+            <span class="vh-badge" style="background:rgba(249,115,22,.15);color:var(--orange);margin-left:auto">30s</span>
+          </div>
+          <canvas id="graphCanvas"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT SIDEBAR -->
+    <div class="sidebar">
+
+      <!-- MODE SELECTOR -->
+      <div class="sb-section">
+        <div class="sb-title">Mode</div>
+        <div class="mode-tabs">
+          <div class="mode-tab active" id="modeSim" onclick="setMode('sim')">🖥 SIM</div>
+          <div class="mode-tab" id="modeRos" onclick="setMode('ros')">📡 ROS</div>
+        </div>
+      </div>
+
+      <!-- SIM PANEL -->
+      <div class="sim-panel visible sb-section" id="simPanel">
+        <div class="sb-title">Contrôles SIM</div>
+        <div class="slider-row">
+          <span class="slider-label">Vitesse robot</span>
+          <input type="range" id="robotSpeed" min="5" max="20" value="10" oninput="updateSimSliders()">
+          <span class="slider-val" id="robotSpeedVal" style="color:var(--cyan)">×1.0</span>
+        </div>
+        <div class="sb-title" style="margin-top:10px">Pannes</div>
+        <div class="fault-grid">
+          <div class="fault-btn" id="faultSlip" onclick="triggerFault('slip')">🍌 Wheel slip</div>
+          <div class="fault-btn" id="faultLidar" onclick="triggerFault('lidar')">🙈 LiDAR off 3s</div>
+          <div class="fault-btn" id="faultSpin" onclick="triggerFault('spin')">🌀 Hard turn</div>
+        </div>
+      </div>
+
+      <!-- ROS PANEL -->
+      <div class="ros-panel sb-section" id="rosPanel">
+        <div class="sb-title">Connexion ROS</div>
+        <input class="ws-input" id="wsUrl" value="ws://localhost:9090" placeholder="ws://robot-ip:9090">
+        <button class="btn btn-ghost" style="width:100%;margin-bottom:8px" onclick="rosConnect()">Connecter</button>
+        <div class="conn-status" id="connStatus">
+          <div class="conn-dot" id="connDot" style="background:var(--muted)"></div>
+          <span id="connLabel" style="font-size:11px;font-family:var(--mono);color:var(--muted)">Déconnecté</span>
+        </div>
+        <div class="sb-title" style="margin-top:8px">Topics</div>
+        <div class="topic-health">
+          <div class="topic-row"><div class="topic-dot" id="dot_odom" style="background:var(--muted)"></div><span>/odom</span><span style="margin-left:auto;color:var(--muted)" id="age_odom">—</span></div>
+          <div class="topic-row"><div class="topic-dot" id="dot_scan" style="background:var(--muted)"></div><span>/scan</span><span style="margin-left:auto;color:var(--muted)" id="age_scan">—</span></div>
+          <div class="topic-row"><div class="topic-dot" id="dot_imu" style="background:var(--muted)"></div><span>/imu</span><span style="margin-left:auto;color:var(--muted)" id="age_imu">—</span></div>
+        </div>
+      </div>
+
+      <!-- SENSORS -->
+      <div class="sb-section">
+        <div class="sb-title">Capteurs</div>
+
+        <!-- ODOM -->
+        <div class="sensor-block sensor-odom">
+          <div class="sensor-header">
+            <span class="sensor-name" style="color:var(--purple)">🔵 Odométrie (encodeurs)</span>
+            <button class="sensor-toggle on" id="togOdom" onclick="toggleSensor('odom')"></button>
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">Drift angulaire</span>
+            <input type="range" id="odomDrift" min="0" max="100" value="40" oninput="updateSensorSliders()">
+            <span class="slider-val" id="odomDriftVal" style="color:var(--purple)">40</span>
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">Glissement</span>
+            <input type="range" id="odomSlip" min="0" max="100" value="20" oninput="updateSensorSliders()">
+            <span class="slider-val" id="odomSlipVal" style="color:var(--purple)">20</span>
+          </div>
+          <div style="font-size:10px;color:var(--muted);margin-top:3px;line-height:1.5">Intègre les deltas de roues. <b style="color:var(--purple)">Biais cumulatif</b> — la spirale grandit avec le temps.</div>
+        </div>
+
+        <!-- LIDAR -->
+        <div class="sensor-block sensor-lidar">
+          <div class="sensor-header">
+            <span class="sensor-name" style="color:var(--green)">📡 LiDAR 2D</span>
+            <button class="sensor-toggle on" id="togLidar" onclick="toggleSensor('lidar')"></button>
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">Bruit (σ)</span>
+            <input type="range" id="lidarNoise" min="0" max="100" value="25" oninput="updateSensorSliders()">
+            <span class="slider-val" id="lidarNoiseVal" style="color:var(--green)">25</span>
+          </div>
+          <div style="font-size:10px;color:var(--muted);margin-top:3px;line-height:1.5">Raycast 360°. <b style="color:var(--green)">Pas de drift</b> — ancre sur l'environnement.</div>
+        </div>
+
+        <!-- GYRO / IMU -->
+        <div class="sensor-block sensor-gyro">
+          <div class="sensor-header">
+            <span class="sensor-name" style="color:var(--yellow)">🔴 IMU / Gyroscope</span>
+            <button class="sensor-toggle on" id="togGyro" onclick="toggleSensor('gyro')"></button>
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">Drift gyro</span>
+            <input type="range" id="gyroDrift" min="0" max="100" value="15" oninput="updateSensorSliders()">
+            <span class="slider-val" id="gyroDriftVal" style="color:var(--yellow)">15</span>
+          </div>
+          <div style="font-size:10px;color:var(--muted);margin-top:3px;line-height:1.5">Corrige la <b style="color:var(--yellow)">direction</b> de l'odom. <b>Désactive</b> pour voir la spirale.</div>
+        </div>
+
+        <!-- UWB -->
+        <div class="sensor-block sensor-uwb">
+          <div class="sensor-header">
+            <span class="sensor-name" style="color:var(--cyan)">◆ UWB (balises)</span>
+            <button class="sensor-toggle off" id="togUwb" onclick="toggleSensor('uwb')"></button>
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">Bruit ranging</span>
+            <input type="range" id="uwbNoise" min="0" max="100" value="30" oninput="updateSensorSliders()">
+            <span class="slider-val" id="uwbNoiseVal" style="color:var(--cyan)">30</span>
+          </div>
+          <div style="font-size:10px;color:var(--muted);margin-top:3px;line-height:1.5">4 balises fixes, trilatération. <b style="color:var(--cyan)">~10cm</b> précision théorique.</div>
+        </div>
+      </div>
+
+      <!-- KALMAN STATE -->
+      <div class="sb-section">
+        <div class="sb-title">Filtre de Kalman (EKF)</div>
+        <div class="slider-row" style="margin-bottom:4px">
+          <span style="font-size:10px;color:var(--muted);font-family:var(--mono)">Gain K</span>
+          <div style="flex:1;margin:0 6px">
+            <div class="kalman-bar-wrap"><div class="kalman-bar-fill" id="kBar" style="width:50%"></div></div>
+          </div>
+          <span class="slider-val" id="kVal" style="color:var(--cyan)">0.50</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:9px;font-family:var(--mono);color:var(--muted);margin-bottom:6px">
+          <span>0 = ignore capteur</span><span>1 = confiance totale</span>
+        </div>
+        <div style="font-size:9px;color:var(--muted);margin-bottom:4px;font-family:var(--mono)">Incertitude Fusion (σ_x, σ_y)</div>
+        <div style="display:flex;gap:6px">
+          <div class="error-card" style="flex:1">
+            <div class="ec-val" id="covX" style="color:var(--orange);font-size:13px">—</div>
+            <div class="ec-label">σ_x (cm)</div>
+          </div>
+          <div class="error-card" style="flex:1">
+            <div class="ec-val" id="covY" style="color:var(--orange);font-size:13px">—</div>
+            <div class="ec-label">σ_y (cm)</div>
+          </div>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-top:6px;line-height:1.5">Les <b style="color:var(--orange)">ellipses</b> sur la carte = zone de confiance à 2σ.</div>
+      </div>
+
+      <!-- SCENARIOS (SIM only) -->
+      <div class="sb-section sim-panel visible" id="scenarioSection">
+        <div class="sb-title">Scénarios éducatifs</div>
+        <div class="scenario-grid">
+          <div class="scenario-btn active" id="scenNormal" onclick="setScenario('normal')">✅ Normal</div>
+          <div class="scenario-btn" id="scenSlip" onclick="setScenario('slip')">🍌 Sol glissant</div>
+          <div class="scenario-btn" id="scenNolidar" onclick="setScenario('nolidar')">🙈 Perte LiDAR</div>
+          <div class="scenario-btn" id="scenDrift" onclick="setScenario('drift')">🌀 Odom seule</div>
+          <div class="scenario-btn" id="scenKidnap" onclick="triggerKidnap()">🫳 Kidnapping</div>
+          <div class="scenario-btn" id="scenUwb" onclick="setScenario('uwb')">◆ Avec UWB</div>
+        </div>
+      </div>
+
+      <!-- ERROR METRICS (SIM only) -->
+      <div class="sb-section sim-panel visible" id="errorSection">
+        <div class="sb-title">Erreurs vs vérité terrain</div>
+        <div class="error-grid" style="grid-template-columns:1fr 1fr">
+          <div class="error-card">
+            <div class="ec-val" id="errOdom" style="color:var(--purple)">—</div>
+            <div class="ec-label">ODOM (cm)</div>
+          </div>
+          <div class="error-card">
+            <div class="ec-val" id="errLidar" style="color:var(--green)">—</div>
+            <div class="ec-label">LIDAR (cm)</div>
+          </div>
+          <div class="error-card">
+            <div class="ec-val" id="errGyro" style="color:var(--yellow)">—</div>
+            <div class="ec-label">IMU (°)</div>
+          </div>
+          <div class="error-card" id="fusionCard">
+            <div class="ec-val" id="errFusion" style="color:var(--orange)">—</div>
+            <div class="ec-label">FUSION (cm)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- EXPLANATION -->
+      <div class="expl-box">
+        <div class="expl-title">📖 <span id="explTitle">Fusion de capteurs</span></div>
+        <div class="expl-body" id="explBody">
+          Chaque capteur a son rôle précis.<br><br>
+          <span class="tag tag-gyro">IMU</span> — corrige la <b>direction</b> de l'odom. Sans lui, l'odom part en spirale.<br>
+          <span class="tag tag-odom">Odom</span> — intègre la position mais dérive si mal orienté.<br>
+          <span class="tag tag-lidar">LiDAR</span> — ancre la position sur la carte, sans drift.<br><br>
+          <b>Désactive le IMU</b> → spirale. Réactive → s'arrête.
+        </div>
+      </div>
+
+    </div><!-- /sidebar -->
+  </div><!-- /content -->
+
+  <!-- BOTTOMBAR -->
+  <div class="bottombar">
+    <div class="bb-item">⏱ <span id="bbTime">0s</span></div>
+    <div class="bb-sep"></div>
+    <div class="bb-item">Pos. réelle: <span id="bbPos">—</span></div>
+    <div class="bb-sep"></div>
+    <div class="bb-item">Err. fusion: <span id="bbFusionErr" style="color:var(--orange)">—</span></div>
+    <div class="bb-sep"></div>
+    <div class="bb-item">Gain K: <span id="bbK" style="color:var(--cyan)">—</span></div>
+    <div class="bb-sep"></div>
+    <div class="bb-item" id="bbMode">Mode: <span>SIM</span></div>
+    <div style="margin-left:auto;font-size:10px;color:var(--muted);font-family:var(--mono)">Club BipBoup · 3iL · Coupe de France de Robotique</div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════════════════════
+const randn = () => {
+  let u=0,v=0;
+  while(u===0) u=Math.random();
+  while(v===0) v=Math.random();
+  return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+};
+const dist2  = (a,b) => Math.hypot(a.x-b.x, a.y-b.y);
+const clamp  = (v,lo,hi) => Math.max(lo, Math.min(hi, v));
+
+function hexToRgba(hex, alpha) {
+  const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+const COLORS = {
+  truth: '#38bdf8', odom: '#a78bfa', lidar: '#00d68f',
+  gyro:  '#eab308', uwb: '#22d3ee', fusion: '#f97316'
+};
+
+// ══════════════════════════════════════════════════════════════════
+// ARENA DEFINITION
+// ══════════════════════════════════════════════════════════════════
+const ARENA_W=2.4, ARENA_H=1.4;
+const ARENA_WALLS = [
+  {x:-ARENA_W, y:-ARENA_H-0.1, w:ARENA_W*2, h:0.1},
+  {x:-ARENA_W, y: ARENA_H,     w:ARENA_W*2, h:0.1},
+  {x:-ARENA_W-0.1, y:-ARENA_H, w:0.1, h:ARENA_H*2},
+  {x: ARENA_W,     y:-ARENA_H, w:0.1, h:ARENA_H*2},
+  {x:-ARENA_W+0.1, y:-ARENA_H+0.1, w:0.8, h:0.2},
+  {x: ARENA_W-0.9, y:-ARENA_H+0.1, w:0.8, h:0.2},
+  {x:-ARENA_W+0.1, y: ARENA_H-0.3, w:0.8, h:0.2},
+  {x: ARENA_W-0.9, y: ARENA_H-0.3, w:0.8, h:0.2},
+  {x:-0.15, y:-ARENA_H+0.1, w:0.3, h:ARENA_H-0.45},
+  {x:-0.15, y: 0.35,        w:0.3, h:ARENA_H-0.45},
+];
+
+// UWB anchors (4 corners)
+const UWB_ANCHORS = [
+  {x:-ARENA_W+0.05, y:-ARENA_H+0.05, id:'A0'},
+  {x: ARENA_W-0.05, y:-ARENA_H+0.05, id:'A1'},
+  {x:-ARENA_W+0.05, y: ARENA_H-0.05, id:'A2'},
+  {x: ARENA_W-0.05, y: ARENA_H-0.05, id:'A3'},
+];
+
+// ══════════════════════════════════════════════════════════════════
+// RAY-AABB INTERSECTION
+// ══════════════════════════════════════════════════════════════════
+function rayAABB(ox,oy,dx,dy,wall) {
+  const x1=wall.x, y1=wall.y, x2=wall.x+wall.w, y2=wall.y+wall.h;
+  let tmin=-Infinity, tmax=Infinity;
+  if (Math.abs(dx)<1e-9){ if(ox<x1||ox>x2) return Infinity; }
+  else { const t1=(x1-ox)/dx, t2=(x2-ox)/dx; tmin=Math.max(tmin,Math.min(t1,t2)); tmax=Math.min(tmax,Math.max(t1,t2)); }
+  if (Math.abs(dy)<1e-9){ if(oy<y1||oy>y2) return Infinity; }
+  else { const t1=(y1-oy)/dy, t2=(y2-oy)/dy; tmin=Math.max(tmin,Math.min(t1,t2)); tmax=Math.min(tmax,Math.max(t1,t2)); }
+  if (tmax<tmin||tmax<0) return Infinity;
+  return tmin>=0 ? tmin : tmax;
+}
+
+function castRay(ox,oy,angle) {
+  const dx=Math.cos(angle), dy=Math.sin(angle);
+  let minD=5.0;
+  for (const w of ARENA_WALLS) { const d=rayAABB(ox,oy,dx,dy,w); if(d<minD) minD=d; }
+  return minD;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════════════
+let appMode='sim', paused=false, simTime=0;
+
+const WAYPOINTS=[
+  {x:-1.2, y:-0.50}, {x:-1.2, y: 0.50},
+  {x: 0.0, y: 0.00},
+  {x: 1.2, y: 0.50}, {x: 1.2, y:-0.50},
+  {x: 0.0, y: 0.00},
+];
+let wpIdx=0;
+
+const truth = {x:WAYPOINTS[0].x, y:WAYPOINTS[0].y, a:0, vx:0, vy:0, speed:0};
+
+// ── Odometry ──
+const odom = {
+  x:truth.x, y:truth.y, a:0, active:true,
+  lastTx:truth.x, lastTy:truth.y, lastTruthA:0,
+  angularBias:0,     // persistent angular bias (deg/s) — THE key drift source
+  distTraveled:0     // total distance for covariance scaling
+};
+
+// ── LiDAR ──
+const lidar = {x:truth.x, y:truth.y, a:0, active:true, scanPts:[], blind:0};
+
+// ── Gyro / IMU ──
+const gyro = {angle:0, active:true, bias:0, lastTruthA:0};
+
+// ── UWB ──
+const uwb = {active:false, x:truth.x, y:truth.y, ranges:[]};
+
+// ── Fusion ──
+const fusion = {x:truth.x, y:truth.y, a:0};
+
+// ── Kalman EKF covariance (position only, 2×2 symmetrical, in m²) ──
+let KP = {xx:0.01, yy:0.01, xy:0.0};
+const KQ_base = 0.0008;  // process noise per second — calibrated for visible ellipse growth
+let lastKGain = 0.5;
+
+// ── Odom covariance (for ellipse display, in m²) ──
+let OP = {xx:0.01, yy:0.01, xy:0.0};
+
+// ── Error history for graphs ──
+const GRAPH_SECS = 30;
+const GRAPH_MAX  = 900;
+const EH = {t:[], odom:[], lidar:[], uwb:[], fusion:[], cov:[]};
+
+function pushEH(t, eo, el, eu, ef, cv) {
+  // Clamp to 5m to avoid kidnap spikes dominating the graph scale
+  EH.t.push(t); EH.odom.push(Math.min(eo,5)); EH.lidar.push(Math.min(el,5));
+  EH.uwb.push(Math.min(eu,5)); EH.fusion.push(Math.min(ef,5)); EH.cov.push(cv);
+  if (EH.t.length > GRAPH_MAX) {
+    EH.t.shift(); EH.odom.shift(); EH.lidar.shift();
+    EH.uwb.shift(); EH.fusion.shift(); EH.cov.shift();
+  }
+}
+
+// Trails
+const MAX_TRAIL=500;
+const trails={truth:[],odom:[],lidar:[],uwb:[],fusion:[]};
+function pushTrail(arr,pt){arr.push({...pt});if(arr.length>MAX_TRAIL)arr.shift();}
+
+// Slider params
+let p_odomDrift=0.40, p_odomSlip=0.20, p_lidarNoise=0.25, p_gyroDrift=0.15, p_uwbNoise=0.30;
+let p_robotSpeed=1.0;
+
+// Faults
+const faults={slip:false, spin:false};
+let kidnapped=false, kidnapTimer=0;
+let wallHitTimer=0;
+
+// ══════════════════════════════════════════════════════════════════
+// ROBOT PHYSICS
+// ══════════════════════════════════════════════════════════════════
+const ROBOT_R=0.12;
+
+function resolveCollisions(x,y) {
+  for (let pass=0;pass<3;pass++) {
+    for (const wall of ARENA_WALLS) {
+      const nx=Math.max(wall.x,Math.min(x,wall.x+wall.w));
+      const ny=Math.max(wall.y,Math.min(y,wall.y+wall.h));
+      const dx=x-nx, dy=y-ny, dist=Math.hypot(dx,dy);
+      if (dist<1e-9){ y-=ROBOT_R+0.001; }
+      else if (dist<ROBOT_R){ const pen=ROBOT_R-dist; x+=(dx/dist)*pen; y+=(dy/dist)*pen; }
+    }
+  }
+  return {x,y};
+}
+
+function angleDiff(a,b){let d=a-b;while(d>180)d-=360;while(d<-180)d+=360;return d;}
+
+function robotStep(dt) {
+  const wp=WAYPOINTS[wpIdx];
+  const dx=wp.x-truth.x, dy=wp.y-truth.y, d=Math.hypot(dx,dy);
+  if (d<0.15){ wpIdx=(wpIdx+1)%WAYPOINTS.length; return; }
+
+  const targetA=Math.atan2(dy,dx);
+  let dA=targetA-truth.a*Math.PI/180;
+  while(dA>Math.PI)dA-=2*Math.PI;
+  while(dA<-Math.PI)dA+=2*Math.PI;
+
+  const omegaDeg=clamp(dA*(180/Math.PI)*3, -180, 180);
+  const aligned=Math.abs(dA)<0.25;
+  const vMax=1.2*p_robotSpeed;
+  const v=aligned ? Math.min(vMax, d*1.8) : 0.1*p_robotSpeed;
+
+  truth.a+=omegaDeg*dt;
+  while(truth.a>180) truth.a-=360;
+  while(truth.a<-180)truth.a+=360;
+
+  const rad=truth.a*Math.PI/180;
+  const prevX=truth.x, prevY=truth.y;
+  const res=resolveCollisions(prevX+Math.cos(rad)*v*dt, prevY+Math.sin(rad)*v*dt);
+  truth.x=res.x; truth.y=res.y;
+  truth.vx=(truth.x-prevX)/dt; truth.vy=(truth.y-prevY)/dt;
+  truth.speed=Math.hypot(truth.vx,truth.vy);
+  const slipRatio=truth.speed/Math.max(v,0.001);
+  if(slipRatio<0.6&&v>0.05) wallHitTimer=0.25;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// SENSOR SIMULATION
+// ══════════════════════════════════════════════════════════════════
+function simOdom(dt) {
+  if (!odom.active) return;
+
+  const dxTrue=truth.x-odom.lastTx, dyTrue=truth.y-odom.lastTy;
+  odom.lastTx=truth.x; odom.lastTy=truth.y;
+  const distTrue=Math.hypot(dxTrue,dyTrue);
+  odom.distTraveled+=distTrue;
+
+  let dATrue=angleDiff(truth.a, odom.lastTruthA);
+  odom.lastTruthA=truth.a;
+
+  // ── Angular bias: persistent drift (random walk of bias in deg/s) ──
+  // This is the ROOT CAUSE of the spiral — a slowly drifting zero-rate offset.
+  // Large coefficient so after 10s without gyro the spiral is unmistakably visible.
+  odom.angularBias += randn() * p_odomDrift * 0.6; // per frame — tuned for visible spiral
+  odom.angularBias *= 0.9995; // very slow decay → bias accumulates without gyro
+
+  // Measured angular change = true + bias*dt + white noise
+  const angNoise = randn() * p_odomDrift * 18 * distTrue;
+  odom.a += dATrue + odom.angularBias * dt + angNoise;
+
+  // ── Gyro correction (IMU corrects angular bias when active) ──
+  if (gyro.active) {
+    const gyroErr=angleDiff(gyro.angle, odom.a);
+    odom.a += gyroErr * 0.92;       // strongly snap to gyro heading
+    odom.angularBias *= 0.72;       // gyro strongly cancels bias → near-zero with gyro on
+  }
+
+  while(odom.a>180) odom.a-=360;
+  while(odom.a<-180)odom.a+=360;
+
+  // ── Distance with slip noise ──
+  const slipFactor = faults.slip ? 0.8 : p_odomSlip;
+  const distNoisy  = distTrue*(1 + randn()*slipFactor*0.12);
+
+  const odomRad=odom.a*Math.PI/180;
+  odom.x+=Math.cos(odomRad)*distNoisy;
+  odom.y+=Math.sin(odomRad)*distNoisy;
+
+  // NOTE: No direct LiDAR correction to odom — only the Kalman fusion benefits from LiDAR.
+  // This keeps the comparison honest: odom = pure dead reckoning, fusion = Kalman+LiDAR.
+}
+
+function simLidar(dt) {
+  if (!lidar.active){ lidar.scanPts=[]; return; }
+  if (lidar.blind>0){ lidar.blind-=dt; lidar.scanPts=[]; return; }
+
+  const noise=p_lidarNoise;
+  const posNoise=noise*0.06;
+  const angNoise=noise*6*Math.PI/180;
+
+  lidar.x=truth.x+randn()*posNoise;
+  lidar.y=truth.y+randn()*posNoise;
+  lidar.a=truth.a+randn()*angNoise*(180/Math.PI);
+
+  // Occasional outlier (surface reflection)
+  if (Math.random()<noise*0.05) {
+    lidar.x+=randn()*0.15;
+    lidar.y+=randn()*0.15;
+  }
+
+  lidar.scanPts=[];
+  const nRays=36;
+  const truthRad=truth.a*Math.PI/180;
+  for (let i=0;i<nRays;i++) {
+    const angle=(i/nRays)*Math.PI*2+truthRad;
+    const trueD=castRay(truth.x,truth.y,angle);
+    const noisyD=Math.max(0.05, trueD+randn()*noise*0.05);
+    lidar.scanPts.push({x:truth.x+Math.cos(angle)*noisyD, y:truth.y+Math.sin(angle)*noisyD});
+  }
+}
+
+function simGyro(dt) {
+  if (!gyro.active) return;
+  let dATrue=angleDiff(truth.a, gyro.lastTruthA);
+  gyro.lastTruthA=truth.a;
+  gyro.bias+=randn()*p_gyroDrift*0.018;
+  const dAMeas=dATrue + gyro.bias*dt + randn()*p_gyroDrift*0.08;
+  gyro.angle+=dAMeas;
+  while(gyro.angle>180) gyro.angle-=360;
+  while(gyro.angle<-180)gyro.angle+=360;
+}
+
+function simUWB() {
+  if (!uwb.active) return;
+  // Trilateration from 4 anchors with noisy range measurements
+  const ranges=UWB_ANCHORS.map(a=>{
+    const trueR=Math.hypot(truth.x-a.x, truth.y-a.y);
+    const noisyR=trueR+randn()*p_uwbNoise*0.08;
+    return {anchor:a, r:noisyR};
+  });
+  uwb.ranges=ranges;
+
+  // Weighted least-squares estimate (simplified 2-anchor combination)
+  // Use pairs (A0,A1) and (A2,A3) then average
+  let sumX=0, sumY=0, count=0;
+  for (const rA of ranges) {
+    for (const rB of ranges) {
+      if (rA.anchor.id >= rB.anchor.id) continue;
+      // Intersection of 2 circles — pick solution closer to current fusion estimate
+      const ax=rA.anchor.x, ay=rA.anchor.y, ra=rA.r;
+      const bx=rB.anchor.x, by=rB.anchor.y, rb=rB.r;
+      const d=Math.hypot(bx-ax, by-ay);
+      if (d>ra+rb || d<Math.abs(ra-rb) || d<0.01) continue;
+      const a2=(ra*ra-rb*rb+d*d)/(2*d);
+      const h2=Math.max(0, ra*ra-a2*a2);
+      const h=Math.sqrt(h2);
+      const mx=ax+(bx-ax)*a2/d, my=ay+(by-ay)*a2/d;
+      const px=-(by-ay)*h/d, py=(bx-ax)*h/d;
+      const sol1={x:mx+px, y:my+py}, sol2={x:mx-px, y:my-py};
+      const best=dist2(sol1,fusion)<dist2(sol2,fusion)?sol1:sol2;
+      sumX+=best.x; sumY+=best.y; count++;
+    }
+  }
+  if (count>0){ uwb.x=sumX/count; uwb.y=sumY/count; }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// KALMAN FILTER (EKF simplified — position 2×2)
+// ══════════════════════════════════════════════════════════════════
+function kalmanPredict(dt) {
+  // Process noise: grows faster with more drift, slip fault, and no gyro correction
+  const qScale = 1 + p_odomDrift*4 + (faults.slip?3:0) + (gyro.active?0:2);
+  const Q = KQ_base * dt * qScale;
+  KP.xx += Q;
+  KP.yy += Q;
+  KP.xy *= 0.98; // cross-correlation decays slowly
+  // Hard ceiling: capped at 1.5m uncertainty (physically meaningful)
+  KP.xx = Math.min(KP.xx, 1.5);
+  KP.yy = Math.min(KP.yy, 1.5);
+}
+
+function kalmanUpdateSensor(zx, zy, R_noise) {
+  // Standard Kalman update: K = P/(P+R)
+  const Kx = KP.xx / (KP.xx + R_noise);
+  const Ky = KP.yy / (KP.yy + R_noise);
+  lastKGain = (Kx + Ky) / 2;
+
+  fusion.x += Kx * (zx - fusion.x);
+  fusion.y += Ky * (zy - fusion.y);
+
+  KP.xx = Math.max((1 - Kx) * KP.xx, R_noise * 0.05);
+  KP.yy = Math.max((1 - Ky) * KP.yy, R_noise * 0.05);
+  KP.xy = (1 - (Kx+Ky)/2) * KP.xy;
+}
+
+// Odom covariance (separate, for ellipse display — grows with drift)
+function updateOdomCov(dt, distTrue) {
+  const driftScale = (1 + p_odomDrift*5 + p_odomSlip*3 + (faults.slip?4:0) + (gyro.active?0:3));
+  const qO = 0.08 * dt * driftScale + distTrue * p_odomDrift * 0.5;
+  OP.xx += qO;
+  OP.yy += qO;
+  // Angle drift creates asymmetric uncertainty
+  OP.xy += qO * 0.4 * Math.sign(odom.angularBias);
+  OP.xy = clamp(OP.xy, -OP.xx*0.85, OP.xx*0.85);
+  OP.xx = Math.min(OP.xx, 2.0); OP.yy = Math.min(OP.yy, 2.0);
+  // Partial reset when LiDAR corrects odom
+  if (lidar.active && lidar.blind<=0) {
+    OP.xx *= 0.96; OP.yy *= 0.96; OP.xy *= 0.95;
+  }
+}
+
+function computeFusion() {
+  const oOn = odom.active;
+  const lOn = lidar.active && lidar.blind<=0;
+  const uOn = uwb.active;
+
+  // ── Predict step ──
+  kalmanPredict(0.016); // ~60fps step
+
+  // ── Update steps (sensor corrections) ──
+  // R values are in same units as KP (×100 scale)
+  if (lOn) {
+    // R ≈ (posNoise)² = (p_lidarNoise*0.06)² — physically calibrated
+    const R_lidar = 0.00018 * (1 + p_lidarNoise * 10);
+    kalmanUpdateSensor(lidar.x, lidar.y, R_lidar);
+  }
+  if (uOn) {
+    const R_uwb = 0.0012 * (1 + p_uwbNoise * 6);
+    kalmanUpdateSensor(uwb.x, uwb.y, R_uwb);
+  }
+  if (oOn && !lOn && !uOn) {
+    // Odom only: high R (high noise), fusion degrades gracefully
+    const R_odom = 0.008 * (1 + p_odomDrift*6 + p_odomSlip*4);
+    kalmanUpdateSensor(odom.x, odom.y, R_odom);
+  }
+
+  // Heading: gyro > lidar > odom
+  if (gyro.active)       fusion.a = gyro.angle;
+  else if (lOn)          fusion.a = lidar.a;
+  else if (oOn)          fusion.a = odom.a;
+
+  // When no position sensor, fusion drifts toward odom
+  if (!lOn && !uOn && oOn) {
+    fusion.x += (odom.x - fusion.x) * 0.05;
+    fusion.y += (odom.y - fusion.y) * 0.05;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// SIMULATION STEP
+// ══════════════════════════════════════════════════════════════════
+function simStep(dt) {
+  simTime+=dt;
+  if(wallHitTimer>0) wallHitTimer=Math.max(0,wallHitTimer-dt);
+  if(kidnapTimer>0)  kidnapTimer=Math.max(0,kidnapTimer-dt);
+
+  const prevX=truth.x, prevY=truth.y;
+  robotStep(dt);
+  const distTrue=Math.hypot(truth.x-prevX, truth.y-prevY);
+
+  simOdom(dt);
+  simLidar(dt);
+  simGyro(dt);
+  simUWB();
+  updateOdomCov(dt, distTrue);
+  computeFusion();
+
+  pushTrail(trails.truth,  {x:truth.x,  y:truth.y});
+  if(odom.active)  pushTrail(trails.odom,   {x:odom.x,   y:odom.y});
+  if(lidar.active && lidar.blind<=0) pushTrail(trails.lidar, {x:lidar.x, y:lidar.y});
+  if(uwb.active)   pushTrail(trails.uwb,    {x:uwb.x,    y:uwb.y});
+  pushTrail(trails.fusion, {x:fusion.x, y:fusion.y});
+
+  // Error metrics
+  const errO = odom.active  ? dist2(odom, truth)   : null;
+  const errL = lidar.active && lidar.blind<=0 ? dist2(lidar, truth) : null;
+  const errU = uwb.active   ? dist2(uwb, truth)    : null;
+  const errF = dist2(fusion, truth);
+  const errG = gyro.active  ? Math.abs(angleDiff(gyro.angle, truth.a)) : null;
+
+  document.getElementById('errOdom').textContent   = errO!=null ? (errO*100).toFixed(1) : '—';
+  document.getElementById('errLidar').textContent  = errL!=null ? (errL*100).toFixed(1) : (lidar.blind>0?'⌛':'—');
+  document.getElementById('errGyro').textContent   = errG!=null ? errG.toFixed(1)       : '—';
+  document.getElementById('errFusion').textContent = (errF*100).toFixed(1);
+
+  // Fusion card color — green if best, red if not
+  const minErr = Math.min(errO??Infinity, errL??Infinity, errU??Infinity);
+  const fc=document.getElementById('fusionCard');
+  const fBetter=errF<minErr;
+  fc.style.borderColor=fBetter?'rgba(0,214,143,.4)':'rgba(239,68,68,.3)';
+  document.getElementById('errFusion').style.color=fBetter?'var(--green)':'var(--red)';
+
+  // Kalman display
+  const sigX=Math.sqrt(Math.max(0,KP.xx))*100; // cm
+  const sigY=Math.sqrt(Math.max(0,KP.yy))*100; // cm
+  // K gain: when lidar is off, K drops (we trust it less); when on, K rises
+  document.getElementById('covX').textContent=sigX.toFixed(1);
+  document.getElementById('covY').textContent=sigY.toFixed(1);
+  document.getElementById('kBar').style.width=(lastKGain*100)+'%';
+  document.getElementById('kVal').textContent=lastKGain.toFixed(2);
+
+  // Status bar
+  document.getElementById('bbTime').textContent     = simTime.toFixed(1)+'s';
+  document.getElementById('bbPos').textContent      = `(${truth.x.toFixed(2)},${truth.y.toFixed(2)})`;
+  document.getElementById('bbFusionErr').textContent= (errF*100).toFixed(1)+' cm';
+  document.getElementById('bbK').textContent        = lastKGain.toFixed(2);
+
+  // Push error history
+  pushEH(simTime, errO??0, errL??0, errU??0, errF, (sigX+sigY)/2);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// WORLD → CANVAS
+// ══════════════════════════════════════════════════════════════════
+function worldToCanvas(x,y,W,H,scale){ return {px:W/2+x*scale, py:H/2+y*scale}; }
+
+// ══════════════════════════════════════════════════════════════════
+// DRAW HELPERS
+// ══════════════════════════════════════════════════════════════════
+function drawBackground(ctx,W,H) {
+  ctx.fillStyle='#060810'; ctx.fillRect(0,0,W,H);
+  const gs=30;
+  ctx.strokeStyle='rgba(30,37,53,.5)'; ctx.lineWidth=.4;
+  for(let x=W/2%gs;x<W;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=H/2%gs;y<H;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  ctx.strokeStyle='rgba(56,189,248,.07)'; ctx.lineWidth=.5;
+  ctx.beginPath();ctx.moveTo(W/2,0);ctx.lineTo(W/2,H);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(0,H/2);ctx.lineTo(W,H/2);ctx.stroke();
+}
+
+function drawWalls(ctx,W,H,scale) {
+  ARENA_WALLS.forEach(wall=>{
+    const {px,py}=worldToCanvas(wall.x,wall.y,W,H,scale);
+    const pw=wall.w*scale, ph=wall.h*scale;
+    ctx.fillStyle='rgba(15,28,70,.92)'; ctx.fillRect(px,py,pw,ph);
+    ctx.save(); ctx.beginPath(); ctx.rect(px,py,pw,ph); ctx.clip();
+    ctx.strokeStyle='rgba(59,130,246,.12)'; ctx.lineWidth=0.6;
+    for(let i=-ph;i<pw+ph;i+=8){ctx.beginPath();ctx.moveTo(px+i,py);ctx.lineTo(px+i+ph,py+ph);ctx.stroke();}
+    ctx.restore();
+    ctx.strokeStyle='rgba(59,130,246,.8)'; ctx.lineWidth=1.5; ctx.strokeRect(px,py,pw,ph);
+    ctx.strokeStyle='rgba(147,197,253,.18)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(px,py+ph); ctx.lineTo(px,py); ctx.lineTo(px+pw,py); ctx.stroke();
+  });
+}
+
+function drawUWBAnchors(ctx,W,H,scale) {
+  UWB_ANCHORS.forEach(a=>{
+    const {px,py}=worldToCanvas(a.x,a.y,W,H,scale);
+    // Pulsing circle if UWB active
+    if (uwb.active) {
+      const pulse=(Math.sin(Date.now()/400+UWB_ANCHORS.indexOf(a))*0.5+0.5)*0.25;
+      ctx.beginPath(); ctx.arc(px,py,12+pulse*8,0,Math.PI*2);
+      ctx.strokeStyle=hexToRgba(COLORS.uwb,0.15+pulse); ctx.lineWidth=1; ctx.stroke();
+      // Range circle
+      const rng=uwb.ranges.find(r=>r.anchor.id===a.id);
+      if(rng){
+        ctx.beginPath(); ctx.arc(px,py,rng.r*scale,0,Math.PI*2);
+        ctx.strokeStyle=hexToRgba(COLORS.uwb,0.12); ctx.lineWidth=0.7;
+        ctx.setLineDash([3,3]); ctx.stroke(); ctx.setLineDash([]);
+      }
+    }
+    ctx.beginPath(); ctx.arc(px,py,5,0,Math.PI*2);
+    ctx.fillStyle=uwb.active?COLORS.uwb:'#2d3a4f'; ctx.fill();
+    ctx.strokeStyle=hexToRgba(COLORS.uwb,0.8); ctx.lineWidth=1.5; ctx.stroke();
+    ctx.fillStyle=COLORS.uwb; ctx.font='bold 8px JetBrains Mono,monospace';
+    ctx.textAlign='center'; ctx.textBaseline='bottom';
+    ctx.fillText(a.id, px, py-7);
+  });
+}
+
+function drawTrail(ctx,trail,color,W,H,scale,maxAlpha=0.7,width=1.5) {
+  if(trail.length<2) return;
+  ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round'; ctx.lineWidth=width;
+  for(let i=1;i<trail.length;i++){
+    const alpha=(i/trail.length)*maxAlpha;
+    const a=worldToCanvas(trail[i-1].x,trail[i-1].y,W,H,scale);
+    const b=worldToCanvas(trail[i].x,  trail[i].y,  W,H,scale);
+    ctx.strokeStyle=hexToRgba(color,alpha);
+    ctx.beginPath(); ctx.moveTo(a.px,a.py); ctx.lineTo(b.px,b.py); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawRobot(ctx,pos,color,label,W,H,scale,isTruth=false) {
+  const {px,py}=worldToCanvas(pos.x,pos.y,W,H,scale);
+  const r=Math.max(5,ROBOT_R*scale);
+  const haloR=isTruth?r*1.4:r*2.6;
+  ctx.beginPath(); ctx.arc(px,py,haloR,0,Math.PI*2);
+  ctx.fillStyle=hexToRgba(color,isTruth?0.04:0.06); ctx.fill();
+  ctx.strokeStyle=hexToRgba(color,isTruth?0.12:0.20); ctx.lineWidth=0.8; ctx.stroke();
+  if(isTruth&&wallHitTimer>0){
+    ctx.beginPath(); ctx.arc(px,py,r*1.9,0,Math.PI*2);
+    ctx.strokeStyle=`rgba(239,68,68,${Math.min(1,wallHitTimer*4)})`; ctx.lineWidth=2.5; ctx.stroke();
+  }
+  ctx.beginPath(); ctx.arc(px,py,r,0,Math.PI*2);
+  ctx.fillStyle=hexToRgba(color,isTruth?0.88:0.70);
+  ctx.strokeStyle=color; ctx.lineWidth=isTruth?2:1.3;
+  ctx.fill(); ctx.stroke();
+  ctx.save(); ctx.translate(px,py); ctx.rotate(pos.a*Math.PI/180);
+  ctx.fillStyle=isTruth?'#fff':color;
+  ctx.beginPath(); ctx.moveTo(r,0); ctx.lineTo(r*0.3,-r*0.5); ctx.lineTo(r*0.3,r*0.5);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+  if(label){
+    ctx.fillStyle=color; ctx.font=`bold ${isTruth?10:9}px JetBrains Mono,monospace`;
+    ctx.textAlign='left'; ctx.textBaseline='middle';
+    ctx.fillText(label, px+r+4, py-r*0.5);
+  }
+}
+
+function drawErrorLine(ctx,a,b,color,W,H,scale) {
+  const pa=worldToCanvas(a.x,a.y,W,H,scale), pb=worldToCanvas(b.x,b.y,W,H,scale);
+  ctx.strokeStyle=hexToRgba(color,0.35); ctx.lineWidth=0.8;
+  ctx.setLineDash([3,2]);
+  ctx.beginPath(); ctx.moveTo(pa.px,pa.py); ctx.lineTo(pb.px,pb.py); ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+// ── Covariance ellipse (2σ confidence region) ──
+function drawCovEllipse(ctx, px, py, Pxx, Pyy, Pxy, color, clampMax=200) {
+  const tr=Pxx+Pyy, det=Pxx*Pyy-Pxy*Pxy;
+  const disc=Math.sqrt(Math.max(0, tr*tr/4-det));
+  const l1=tr/2+disc, l2=Math.max(0,tr/2-disc);
+  const aRad=2*Math.sqrt(Math.max(0,l1)), bRad=2*Math.sqrt(Math.max(0,l2));
+  const angle=Math.abs(Pxx-l2)>1e-9 ? Math.atan2(Pxy,Pxx-l2) : 0;
+  ctx.save();
+  ctx.translate(px,py); ctx.rotate(angle);
+  ctx.beginPath();
+  ctx.ellipse(0,0,
+    clamp(aRad,4,clampMax),
+    clamp(bRad,3,clampMax),
+    0,0,Math.PI*2);
+  ctx.fillStyle=hexToRgba(color,0.06); ctx.fill();
+  ctx.strokeStyle=hexToRgba(color,0.55); ctx.lineWidth=1.5;
+  ctx.setLineDash([4,3]); ctx.stroke(); ctx.setLineDash([]);
+  ctx.restore();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// DRAW OVERVIEW
+// ══════════════════════════════════════════════════════════════════
+let ovCanvas,ovCtx, liCanvas,liCtx, grCanvas,grCtx;
+
+function drawOverview() {
+  const W=ovCanvas.width, H=ovCanvas.height;
+  if(!W||!H) return;
+  const scale=Math.min(W,H)/(ARENA_H*3.2);
+
+  drawBackground(ovCtx,W,H);
+  drawWalls(ovCtx,W,H,scale);
+  drawUWBAnchors(ovCtx,W,H,scale);
+
+  // Trails
+  drawTrail(ovCtx,trails.truth, COLORS.truth, W,H,scale, 0.45, 1.2);
+  if(odom.active)  drawTrail(ovCtx,trails.odom,  COLORS.odom,  W,H,scale, 0.55, 1.5);
+  if(lidar.active && lidar.blind<=0) drawTrail(ovCtx,trails.lidar, COLORS.lidar, W,H,scale, 0.45, 1.2);
+  if(uwb.active)   drawTrail(ovCtx,trails.uwb,   COLORS.uwb,  W,H,scale, 0.4, 1.0);
+  drawTrail(ovCtx,trails.fusion, COLORS.fusion, W,H,scale, 0.9, 2.5);
+
+  // LiDAR scan points (faint rays on overview)
+  if(lidar.active && lidar.blind<=0 && lidar.scanPts.length) {
+    lidar.scanPts.forEach(pt=>{
+      const sp=worldToCanvas(lidar.x,lidar.y,W,H,scale);
+      const ep=worldToCanvas(pt.x,pt.y,W,H,scale);
+      ovCtx.strokeStyle='rgba(0,214,143,.05)'; ovCtx.lineWidth=0.4;
+      ovCtx.beginPath(); ovCtx.moveTo(sp.px,sp.py); ovCtx.lineTo(ep.px,ep.py); ovCtx.stroke();
+      ovCtx.fillStyle='rgba(0,214,143,.4)';
+      ovCtx.beginPath(); ovCtx.arc(ep.px,ep.py,1.5,0,Math.PI*2); ovCtx.fill();
+    });
+  }
+
+  // ── COVARIANCE ELLIPSES (the key Kalman visualization) ──
+  // Visual scale factors: amplify for legibility while preserving relative sizes.
+  // KP in m² → need ×5000 to get visible pixels at typical scale of ~90px/m
+  // OP in m² (larger) → ×120 gives reasonable display
+  const EV_FUSION = 5000;
+  const EV_ODOM   = 120;
+  const s2 = scale * scale;
+
+  // Odom uncertainty ellipse (grows with drift, shrinks with LiDAR)
+  if (odom.active) {
+    const op=worldToCanvas(odom.x,odom.y,W,H,scale);
+    drawCovEllipse(ovCtx, op.px, op.py,
+      OP.xx*s2*EV_ODOM, OP.yy*s2*EV_ODOM, OP.xy*s2*EV_ODOM, COLORS.odom, 280);
+  }
+  // Fusion uncertainty ellipse (Kalman posterior — should be smallest)
+  {
+    const fp=worldToCanvas(fusion.x,fusion.y,W,H,scale);
+    drawCovEllipse(ovCtx, fp.px, fp.py,
+      KP.xx*s2*EV_FUSION, KP.yy*s2*EV_FUSION, KP.xy*s2*EV_FUSION, COLORS.fusion, 260);
+  }
+
+  // Gyro arc
+  if (gyro.active) {
+    const tp=worldToCanvas(truth.x,truth.y,W,H,scale);
+    const truthRad=truth.a*Math.PI/180, gyroRad=gyro.angle*Math.PI/180;
+    const arcR=20;
+    ovCtx.save();
+    ovCtx.strokeStyle=hexToRgba(COLORS.gyro,0.7); ovCtx.lineWidth=2;
+    ovCtx.beginPath(); ovCtx.arc(tp.px,tp.py,arcR,truthRad,gyroRad,gyro.angle<truth.a); ovCtx.stroke();
+    ovCtx.strokeStyle=hexToRgba(COLORS.gyro,0.5); ovCtx.lineWidth=1;
+    ovCtx.setLineDash([2,2]);
+    ovCtx.beginPath(); ovCtx.moveTo(tp.px,tp.py);
+    ovCtx.lineTo(tp.px+Math.cos(gyroRad)*arcR*1.5, tp.py+Math.sin(gyroRad)*arcR*1.5);
+    ovCtx.stroke(); ovCtx.setLineDash([]);
+    ovCtx.restore();
+  }
+
+  // Error lines
+  if(odom.active)  drawErrorLine(ovCtx,truth,odom,  COLORS.odom,  W,H,scale);
+  if(lidar.active && lidar.blind<=0) drawErrorLine(ovCtx,truth,lidar,COLORS.lidar,W,H,scale);
+  if(uwb.active)   drawErrorLine(ovCtx,truth,uwb,   COLORS.uwb,   W,H,scale);
+  drawErrorLine(ovCtx,truth,fusion,COLORS.fusion,W,H,scale);
+
+  // Robots
+  if(odom.active)  drawRobot(ovCtx,odom,  COLORS.odom,  'Odom',  W,H,scale,false);
+  if(lidar.active && lidar.blind<=0) drawRobot(ovCtx,lidar,COLORS.lidar,'LiDAR',W,H,scale,false);
+  if(uwb.active)   drawRobot(ovCtx,uwb,   COLORS.uwb,  'UWB',   W,H,scale,false);
+  drawRobot(ovCtx,fusion,COLORS.fusion,'Fusion',W,H,scale,false);
+  drawRobot(ovCtx,truth, COLORS.truth, 'Vérité',W,H,scale,true);
+
+  // Kidnap flash overlay
+  if (kidnapTimer>0) {
+    const alpha=kidnapTimer*0.8;
+    ovCtx.fillStyle=`rgba(239,68,68,${alpha*0.15})`;
+    ovCtx.fillRect(0,0,W,H);
+    ovCtx.fillStyle=`rgba(239,68,68,${alpha})`;
+    ovCtx.font='bold 14px Nunito,sans-serif';
+    ovCtx.textAlign='center'; ovCtx.textBaseline='middle';
+    ovCtx.fillText('🫳 KIDNAPPED — LiDAR en cours de relocalisation…', W/2, 22);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// DRAW LIDAR VIEW
+// ══════════════════════════════════════════════════════════════════
+function drawLidarView() {
+  const W=liCanvas.width, H=liCanvas.height;
+  if(!W||!H) return;
+  const scale=Math.min(W,H)/(ARENA_H*3.2);
+
+  drawBackground(liCtx,W,H);
+  drawWalls(liCtx,W,H,scale);
+
+  if(lidar.active && lidar.blind<=0 && lidar.scanPts.length) {
+    const sp=worldToCanvas(lidar.x,lidar.y,W,H,scale);
+    lidar.scanPts.forEach(pt=>{
+      const ep=worldToCanvas(pt.x,pt.y,W,H,scale);
+      // Color by distance (green close → blue far)
+      const d=Math.hypot(pt.x-lidar.x, pt.y-lidar.y);
+      const t=clamp(d/3,0,1);
+      const r=Math.round(0+t*56), g=Math.round(214*(1-t)+189*t), b=Math.round(143*(1-t)+248*t);
+      liCtx.strokeStyle=`rgba(${r},${g},${b},0.15)`; liCtx.lineWidth=0.5;
+      liCtx.beginPath(); liCtx.moveTo(sp.px,sp.py); liCtx.lineTo(ep.px,ep.py); liCtx.stroke();
+      liCtx.fillStyle=`rgba(${r},${g},${b},0.8)`;
+      liCtx.beginPath(); liCtx.arc(ep.px,ep.py,2.5,0,Math.PI*2); liCtx.fill();
+    });
+    drawRobot(liCtx,lidar,COLORS.lidar,'LiDAR est.',W,H,scale,false);
+  }
+  drawTrail(liCtx,trails.lidar,COLORS.lidar,W,H,scale,0.6,1.5);
+
+  if(lidar.blind>0) {
+    liCtx.fillStyle='rgba(239,68,68,.6)';
+    liCtx.font='bold 12px Nunito,sans-serif';
+    liCtx.textAlign='center'; liCtx.textBaseline='middle';
+    liCtx.fillText(`⌛ LiDAR aveugle — ${lidar.blind.toFixed(1)}s`, W/2, H/2);
+  } else if (!lidar.active) {
+    liCtx.fillStyle=hexToRgba(COLORS.lidar,0.3);
+    liCtx.font='bold 11px Nunito,sans-serif';
+    liCtx.textAlign='center'; liCtx.textBaseline='middle';
+    liCtx.fillText('LiDAR désactivé', W/2, H/2);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// DRAW ERROR GRAPH
+// ══════════════════════════════════════════════════════════════════
+function drawGraph() {
+  const W=grCanvas.width, H=grCanvas.height;
+  if(!W||!H) return;
+  const ctx=grCtx;
+
+  drawBackground(ctx,W,H);
+
+  if(EH.t.length < 3) {
+    ctx.fillStyle='rgba(74,85,104,.5)'; ctx.font='11px Nunito,sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('Démarrage de la simulation…', W/2, H/2);
+    return;
+  }
+
+  const ML=42, MR=10, MT=28, MB=28;
+  const gW=W-ML-MR, gH=H-MT-MB;
+  if(gW<=0||gH<=0) return;
+
+  // Time window
+  const tNow=EH.t[EH.t.length-1];
+  const tStart=Math.max(0, tNow-GRAPH_SECS);
+
+  // Auto-scale Y: 90th-percentile of visible window (robust to kidnap spikes)
+  const visVals=[];
+  EH.t.forEach((t,i)=>{
+    if(t<tStart) return;
+    if(odom.active && isFinite(EH.odom[i]))   visVals.push(EH.odom[i]*100);
+    if(lidar.active && isFinite(EH.lidar[i])) visVals.push(EH.lidar[i]*100);
+    if(uwb.active && isFinite(EH.uwb[i]))     visVals.push(EH.uwb[i]*100);
+    if(isFinite(EH.fusion[i]))                 visVals.push(EH.fusion[i]*100);
+  });
+  visVals.sort((a,b)=>a-b);
+  const p90=visVals.length ? visVals[Math.floor(visVals.length*0.90)] : 10;
+  let maxE = Math.max(10, p90 * 1.3);
+  maxE = Math.ceil(maxE/5)*5; // round to nearest 5cm
+
+  const mapX = t => ML + clamp((t-tStart)/GRAPH_SECS,0,1)*gW;
+  const mapY = e => MT + gH - clamp(e*100/maxE,0,1)*gH; // e in metres
+
+  // Grid lines
+  ctx.strokeStyle='rgba(30,37,53,.8)'; ctx.lineWidth=0.4;
+  for(let i=0;i<=4;i++){
+    const y=MT+gH*i/4;
+    ctx.beginPath(); ctx.moveTo(ML,y); ctx.lineTo(ML+gW,y); ctx.stroke();
+    ctx.fillStyle='rgba(74,85,104,.7)'; ctx.font='8px JetBrains Mono,monospace';
+    ctx.textAlign='right'; ctx.textBaseline='middle';
+    ctx.fillText(Math.round(maxE*(4-i)/4)+'cm', ML-3, y);
+  }
+
+  // X axis ticks
+  ctx.fillStyle='rgba(74,85,104,.5)'; ctx.textAlign='center'; ctx.textBaseline='top';
+  for(let s=0;s<=GRAPH_SECS;s+=5){
+    const x=mapX(tStart+s);
+    ctx.fillText(s+'s', x, MT+gH+3);
+  }
+
+  // Draw curve helper
+  function drawCurve(arr, color, dash=[]) {
+    ctx.beginPath(); ctx.setLineDash(dash);
+    let started=false;
+    EH.t.forEach((t,i)=>{
+      if(t<tStart) return;
+      const x=mapX(t), y=mapY(arr[i]);
+      if(!started){ctx.moveTo(x,y);started=true;} else ctx.lineTo(x,y);
+    });
+    ctx.strokeStyle=color; ctx.lineWidth=1.8; ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Fill under fusion curve
+  ctx.beginPath();
+  let started=false;
+  EH.t.forEach((t,i)=>{
+    if(t<tStart) return;
+    const x=mapX(t), y=mapY(EH.fusion[i]);
+    if(!started){ctx.moveTo(x,MT+gH);ctx.lineTo(x,y);started=true;} else ctx.lineTo(x,y);
+  });
+  ctx.lineTo(mapX(tNow), MT+gH); ctx.closePath();
+  ctx.fillStyle='rgba(249,115,22,0.06)'; ctx.fill();
+
+  if(odom.active)  drawCurve(EH.odom,  COLORS.odom,  []);
+  if(lidar.active) drawCurve(EH.lidar, COLORS.lidar, []);
+  if(uwb.active)   drawCurve(EH.uwb,   COLORS.uwb,   [4,3]);
+  drawCurve(EH.fusion, COLORS.fusion, []);
+
+  // Legend
+  const leg=[];
+  if(odom.active)  leg.push({c:COLORS.odom,  l:'Odom'});
+  if(lidar.active) leg.push({c:COLORS.lidar, l:'LiDAR'});
+  if(uwb.active)   leg.push({c:COLORS.uwb,   l:'UWB'});
+  leg.push({c:COLORS.fusion, l:'Fusion'});
+
+  let lx=ML+4;
+  leg.forEach(({c,l})=>{
+    ctx.fillStyle=c; ctx.fillRect(lx,MT-18,14,5);
+    ctx.fillStyle='rgba(201,209,224,.8)'; ctx.font='9px JetBrains Mono,monospace';
+    ctx.textAlign='left'; ctx.textBaseline='middle';
+    ctx.fillText(l, lx+17, MT-15);
+    lx+=l.length*6+28;
+  });
+
+  // Y axis label
+  ctx.save(); ctx.translate(10,MT+gH/2); ctx.rotate(-Math.PI/2);
+  ctx.fillStyle='rgba(74,85,104,.7)'; ctx.font='8px JetBrains Mono,monospace';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('Erreur position', 0, 0);
+  ctx.restore();
+}
+
+function drawAll() { drawOverview(); drawLidarView(); drawGraph(); }
+
+// ══════════════════════════════════════════════════════════════════
+// ROS MODE
+// ══════════════════════════════════════════════════════════════════
+let rosWS=null;
+const rosLastMsg={odom:0,scan:0,imu:0};
+
+function rosConnect() {
+  if(rosWS&&rosWS.readyState===WebSocket.OPEN){rosWS.close();return;}
+  const url=document.getElementById('wsUrl').value.trim();
+  try{rosWS=new WebSocket(url);}catch(e){rosSetStatus('Erreur URL','red');return;}
+  rosSetStatus('Connexion…','#eab308');
+  rosWS.onopen=()=>{
+    rosSetStatus('Connecté','var(--green)');
+    rosSubscribe('/odom','nav_msgs/Odometry');
+    rosSubscribe('/scan','sensor_msgs/LaserScan');
+    rosSubscribe('/imu', 'sensor_msgs/Imu');
+    document.getElementById('chip').textContent='ROS connecté';
+    document.getElementById('chip').className='chip ok';
+  };
+  rosWS.onclose=()=>{rosSetStatus('Déconnecté','var(--muted)');document.getElementById('chip').textContent='ROS déconnecté';document.getElementById('chip').className='chip';};
+  rosWS.onerror=()=>rosSetStatus('Erreur','var(--red)');
+  rosWS.onmessage=e=>{const msg=JSON.parse(e.data);if(msg.op==='publish')rosHandleMsg(msg.topic,msg.msg);};
+}
+function rosSubscribe(topic,type){rosWS.send(JSON.stringify({op:'subscribe',topic,type}));}
+function rosHandleMsg(topic,msg) {
+  const now=performance.now();
+  if(topic==='/odom'){
+    rosLastMsg.odom=now;
+    const p=msg.pose.pose.position, q=msg.pose.pose.orientation;
+    const yaw=Math.atan2(2*(q.w*q.z+q.x*q.y),1-2*(q.y*q.y+q.z*q.z))*180/Math.PI;
+    odom.x=p.x;odom.y=p.y;odom.a=yaw;
+  } else if(topic==='/scan'){
+    rosLastMsg.scan=now;
+    lidar.scanPts=[];
+    msg.ranges.forEach((r,i)=>{
+      if(r<msg.range_min||r>msg.range_max) return;
+      const angle=msg.angle_min+i*msg.angle_increment+odom.a*Math.PI/180;
+      lidar.scanPts.push({x:odom.x+Math.cos(angle)*r,y:odom.y+Math.sin(angle)*r});
+    });
+    lidar.x=odom.x;lidar.y=odom.y;
+  } else if(topic==='/imu'){
+    rosLastMsg.imu=now;
+    gyro.angle+=msg.angular_velocity.z*0.05*180/Math.PI;
+  }
+}
+function rosSetStatus(text,color){
+  document.getElementById('connDot').style.background=color;
+  document.getElementById('connLabel').textContent=text;
+  document.getElementById('connLabel').style.color=color;
+}
+function updateTopicHealth(){
+  if(appMode!=='ros') return;
+  const now=performance.now();
+  ['odom','scan','imu'].forEach(t=>{
+    const age=rosLastMsg[t]?((now-rosLastMsg[t])/1000).toFixed(1)+'s':'—';
+    const fresh=rosLastMsg[t]&&(now-rosLastMsg[t])<2000;
+    document.getElementById('age_'+t).textContent=age;
+    document.getElementById('dot_'+t).style.background=fresh?'var(--green)':'var(--muted)';
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// MAIN LOOP
+// ══════════════════════════════════════════════════════════════════
+let lastT=null;
+function loop(ts) {
+  if(!lastT) lastT=ts;
+  const dt=Math.min((ts-lastT)/1000, 0.05);
+  lastT=ts;
+  if(!paused){
+    if(appMode==='sim') simStep(dt);
+    else if(appMode==='ros') updateTopicHealth();
+  }
+  drawAll();
+  requestAnimationFrame(loop);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// CONTROLS
+// ══════════════════════════════════════════════════════════════════
+function setMode(m) {
+  appMode=m;
+  ['Sim','Ros'].forEach(x=>document.getElementById('mode'+x).classList.toggle('active',m===x.toLowerCase()));
+  document.getElementById('simPanel').classList.toggle('visible',m==='sim');
+  document.getElementById('rosPanel').classList.toggle('visible',m==='ros');
+  document.getElementById('scenarioSection').classList.toggle('visible',m==='sim');
+  document.getElementById('errorSection').classList.toggle('visible',m==='sim');
+  document.getElementById('bbMode').innerHTML=`Mode: <span>${m.toUpperCase()}</span>`;
+  document.getElementById('chip').textContent=m==='sim'?'Simulation en cours':'ROS — Déconnecté';
+  document.getElementById('chip').className='chip';
+  updateExpl();
+}
+
+function toggleSensor(s) {
+  if(s==='odom') { odom.active=!odom.active;   updateToggle('togOdom', odom.active); }
+  if(s==='lidar'){ lidar.active=!lidar.active; updateToggle('togLidar',lidar.active); }
+  if(s==='gyro') { gyro.active=!gyro.active;   updateToggle('togGyro', gyro.active); }
+  if(s==='uwb')  { uwb.active=!uwb.active;     updateToggle('togUwb',  uwb.active);  }
+  updateExpl();
+}
+
+function updateToggle(id,on){
+  document.getElementById(id).className='sensor-toggle '+(on?'on':'off');
+}
+
+function updateSensorSliders() {
+  p_odomDrift  = parseInt(document.getElementById('odomDrift').value)  / 100;
+  p_odomSlip   = parseInt(document.getElementById('odomSlip').value)   / 100;
+  p_lidarNoise = parseInt(document.getElementById('lidarNoise').value) / 100;
+  p_gyroDrift  = parseInt(document.getElementById('gyroDrift').value)  / 100;
+  p_uwbNoise   = parseInt(document.getElementById('uwbNoise').value)   / 100;
+  document.getElementById('odomDriftVal').textContent  = Math.round(p_odomDrift*100);
+  document.getElementById('odomSlipVal').textContent   = Math.round(p_odomSlip*100);
+  document.getElementById('lidarNoiseVal').textContent = Math.round(p_lidarNoise*100);
+  document.getElementById('gyroDriftVal').textContent  = Math.round(p_gyroDrift*100);
+  document.getElementById('uwbNoiseVal').textContent   = Math.round(p_uwbNoise*100);
+}
+
+function updateSimSliders() {
+  p_robotSpeed=parseInt(document.getElementById('robotSpeed').value)/10;
+  document.getElementById('robotSpeedVal').textContent='×'+p_robotSpeed.toFixed(1);
+}
+
+function triggerFault(f) {
+  if(f==='slip'){
+    faults.slip=!faults.slip;
+    document.getElementById('faultSlip').classList.toggle('active',faults.slip);
+  } else if(f==='lidar'){
+    lidar.blind=3.0;
+    document.getElementById('faultLidar').classList.add('active');
+    // Kalman: uncertainty grows while LiDAR is blind
+    setTimeout(()=>document.getElementById('faultLidar').classList.remove('active'),3100);
+  } else if(f==='spin'){
+    truth.a+=150+Math.random()*90;
+    while(truth.a>180) truth.a-=360;
+  }
+}
+
+function triggerKidnap() {
+  // Teleport robot to a random position — only LiDAR can relocalize
+  const newX=(Math.random()-0.5)*(ARENA_W*1.6);
+  const newY=(Math.random()-0.5)*(ARENA_H*1.6);
+  truth.x=clamp(newX,-ARENA_W+0.2,ARENA_W-0.2);
+  truth.y=clamp(newY,-ARENA_H+0.2,ARENA_H-0.2);
+  truth.a=Math.random()*360-180;
+  // Odom doesn't know about the teleport — it stays where it was
+  // LiDAR will immediately see the true position and Kalman will correct
+  // Covariance explodes to reflect high uncertainty
+  KP.xx=0.5; KP.yy=0.5; KP.xy=0.0;
+  kidnapped=true; kidnapTimer=2.5;
+  document.getElementById('chip').textContent='🫳 KIDNAPPED!';
+  document.getElementById('chip').className='chip warn';
+  setTimeout(()=>{
+    if(kidnapped){
+      kidnapped=false;
+      document.getElementById('chip').textContent='Simulation en cours';
+      document.getElementById('chip').className='chip';
+    }
+  }, 3000);
+  updateExpl();
+}
+
+function setScenario(name) {
+  // Deactivate all scenarios
+  document.querySelectorAll('.scenario-btn').forEach(b=>b.classList.remove('active'));
+  const btnId='scen'+name.charAt(0).toUpperCase()+name.slice(1);
+  const btn=document.getElementById(btnId);
+  if(btn) btn.classList.add('active');
+
+  // Reset sensors
+  odom.active=true; lidar.active=true; gyro.active=true; uwb.active=false;
+  updateToggle('togOdom',true); updateToggle('togLidar',true);
+  updateToggle('togGyro',true); updateToggle('togUwb',false);
+  faults.slip=false; document.getElementById('faultSlip').classList.remove('active');
+
+  if(name==='normal'){
+    setSliders(40,20,25,15,30);
+  } else if(name==='slip'){
+    // Sol glissant: odom dérive fort, LiDAR compense
+    setSliders(70,85,20,15,30);
+    faults.slip=true; document.getElementById('faultSlip').classList.add('active');
+  } else if(name==='nolidar'){
+    // Perte LiDAR: fusion bascule sur odom+IMU, ellipse grossit
+    setSliders(40,20,25,15,30);
+    lidar.active=false; updateToggle('togLidar',false);
+    lidar.blind=0;
+  } else if(name==='drift'){
+    // Odom seule (sans gyro ni LiDAR) — spirale garantie
+    setSliders(90,50,25,10,30);
+    lidar.active=false; gyro.active=false;
+    updateToggle('togLidar',false); updateToggle('togGyro',false);
+  } else if(name==='uwb'){
+    // Avec UWB: balises actives, voir la trilatération
+    setSliders(40,20,25,15,30);
+    uwb.active=true; updateToggle('togUwb',true);
+  }
+
+  updateSensorSliders();
+  resetSim();
+  updateExpl();
+}
+
+function setSliders(drift, slip, lnoise, gdrift, unoise) {
+  document.getElementById('odomDrift').value  = drift;
+  document.getElementById('odomSlip').value   = slip;
+  document.getElementById('lidarNoise').value = lnoise;
+  document.getElementById('gyroDrift').value  = gdrift;
+  document.getElementById('uwbNoise').value   = unoise;
+}
+
+function resetSim() {
+  simTime=0; wpIdx=0;
+  Object.assign(truth,{x:WAYPOINTS[0].x,y:WAYPOINTS[0].y,a:0,vx:0,vy:0,speed:0});
+  Object.assign(odom, {x:truth.x,y:truth.y,a:0,lastTx:truth.x,lastTy:truth.y,lastTruthA:0,angularBias:0,distTraveled:0});
+  Object.assign(lidar,{x:truth.x,y:truth.y,a:0,scanPts:[],blind:0});
+  gyro.angle=0; gyro.bias=0; gyro.lastTruthA=0;
+  Object.assign(uwb,  {x:truth.x,y:truth.y,ranges:[]});
+  Object.assign(fusion,{x:truth.x,y:truth.y,a:0});
+  KP={xx:0.01,yy:0.01,xy:0.0};
+  OP={xx:0.01,yy:0.01,xy:0.0};
+  lastKGain=0.5;
+  kidnapped=false; kidnapTimer=0; wallHitTimer=0;
+  Object.values(trails).forEach(t=>t.length=0);
+  EH.t.length=0; EH.odom.length=0; EH.lidar.length=0;
+  EH.uwb.length=0; EH.fusion.length=0; EH.cov.length=0;
+  document.getElementById('chip').textContent='Simulation en cours';
+  document.getElementById('chip').className='chip';
+}
+
+function togglePause() {
+  paused=!paused;
+  document.getElementById('btnPause').textContent=paused?'▶ Reprendre':'⏸ Pause';
+}
+
+// ══════════════════════════════════════════════════════════════════
+// EXPLANATION
+// ══════════════════════════════════════════════════════════════════
+function updateExpl() {
+  const oOn=odom.active, lOn=lidar.active&&lidar.blind<=0, gOn=gyro.active, uOn=uwb.active;
+  let title, body;
+
+  if(kidnapped){
+    title='🫳 Kidnapping !';
+    body='Le robot a été <b>téléporté</b>. L\'odométrie croit qu\'il est toujours à l\'ancienne position.<br><br>'
+      +'<span class="tag tag-lidar">LiDAR</span> reconnaît l\'environnement → relocalisation en <b>&lt;200ms</b>.<br><br>'
+      +'Observe l\'ellipse de covariance <span class="tag tag-fusion">Fusion</span> exploser puis se <b>réduire instantanément</b> grâce au LiDAR.';
+  } else if(appMode==='ros'){
+    title='📡 Mode ROS';
+    body='Connecté à un <b>vrai robot</b> via rosbridge.<br><br>Topics <span class="tag tag-odom">/odom</span>, <span class="tag tag-lidar">/scan</span>, <span class="tag tag-gyro">/imu</span> en temps réel.<br><br>Observe les ellipses de covariance se comporter sur données réelles.';
+  } else if(!oOn&&!lOn&&!uOn){
+    title='❌ Aucun capteur de position !';
+    body='Le robot est <b>aveugle</b> en position. Active au moins un capteur.';
+  } else if(!oOn&&!gOn){
+    title='📡 LiDAR seul';
+    body='LiDAR seul : pas de drift, mais la position <b>saute</b> à chaque mise à jour bruitée.<br><br>L\'odométrie est indispensable pour <b>interpoler</b> les mouvements entre deux scans.';
+  } else if(!lOn&&!gOn&&!uOn){
+    title='🔵 Odométrie seule — spirale garantie';
+    body='Sans gyro ni LiDAR, l\'odom intègre ses erreurs angulaires → biais → <b>spirale</b>.<br><br>L\'ellipse violette grossit indéfiniment. L\'erreur est <b>permanente et cumulative</b>.<br><br>Après 30s : l\'odom est à plus de <b>50 cm</b> de la vérité.';
+  } else if(!lOn&&!uOn){
+    title='🔵🔴 Odom + IMU (sans LiDAR)';
+    body='Le <span class="tag tag-gyro">IMU</span> corrige la direction → <b>moins de spirale</b> ! Mais sans LiDAR pour ancrer la position, le slip de distance s\'accumule.<br><br>L\'ellipse de covariance grossit lentement mais ne peut pas être réduite sans mesure absolue.';
+  } else if(!gOn){
+    title='🔵📡 Odom + LiDAR (sans IMU)';
+    body='Le <span class="tag tag-lidar">LiDAR</span> corrige la position — bien ! Mais sans IMU, l\'angle est instable sous forte dérive angulaire.<br><br>Active l\'IMU pour voir l\'angle se stabiliser <b>instantanément</b>.';
+  } else if(uOn){
+    title='◆ Fusion complète avec UWB';
+    body='Configuration maximale : Odom + LiDAR + IMU + <span class="tag tag-uwb">UWB</span>.<br><br>'
+      +'Les cercles cyan montrent la <b>trilatération</b> depuis les 4 balises.<br><br>'
+      +'Le Gain K monte → la fusion fait <b>davantage confiance</b> aux balises. L\'ellipse se réduit.';
+  } else {
+    title='🤝 Fusion optimale — 3 capteurs';
+    body='Configuration optimale !<br><br>'
+      +'<span class="tag tag-gyro">IMU</span> → corrige la direction à chaque pas<br>'
+      +'<span class="tag tag-odom">Odom</span> → intègre la position (dérive si mal orienté)<br>'
+      +'<span class="tag tag-lidar">LiDAR</span> → ancre sur la carte, réduit l\'ellipse<br><br>'
+      +'<b>Désactive l\'IMU</b> → spirale reprend. Réactive → s\'arrête. L\'ellipse te montre <b>en temps réel</b> l\'incertitude du Kalman.';
+  }
+
+  document.getElementById('explTitle').textContent=title;
+  document.getElementById('explBody').innerHTML=body;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// CANVAS RESIZE
+// ══════════════════════════════════════════════════════════════════
+function initCanvases() {
+  ovCanvas=document.getElementById('overviewCanvas');
+  liCanvas=document.getElementById('lidarCanvas');
+  grCanvas=document.getElementById('graphCanvas');
+  ovCtx=ovCanvas.getContext('2d');
+  liCtx=liCanvas.getContext('2d');
+  grCtx=grCanvas.getContext('2d');
+
+  function resize() {
+    [[ovCanvas],[liCanvas],[grCanvas]].forEach(([c])=>{
+      const p=c.parentElement;
+      const head=p.querySelector('.view-head');
+      c.width =Math.max(10,p.clientWidth);
+      c.height=Math.max(10,p.clientHeight-(head?head.offsetHeight:0));
+    });
+  }
+  resize();
+  window.addEventListener('resize',resize);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════════
+window.addEventListener('load',()=>{
+  initCanvases();
+  updateSensorSliders();
+  updateSimSliders();
+  updateExpl();
+  requestAnimationFrame(loop);
+});
+</script>
+</body>
+</html>

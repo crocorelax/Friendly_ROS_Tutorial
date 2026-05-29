@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>BipBoup · Pathfinding</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Nunito:wght@600;700;800;900&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0b0d11;--panel:#111520;--panel2:#161b26;--border:#1e2535;--border2:#252f42;
+  --green:#00d68f;--red:#ef4444;--yellow:#eab308;--blue:#38bdf8;
+  --orange:#f97316;--purple:#a78bfa;--cyan:#22d3ee;--pink:#f472b6;
+  --text:#c9d1e0;--muted:#4a5568;
+  --mono:'JetBrains Mono',monospace;--sans:'Nunito',sans-serif;
+  /* Cell colors */
+  --cell-empty:#0d1017;
+  --cell-wall:#1e3a5f;
+  --cell-open:#1a2d1a;
+  --cell-closed:#2d1a2d;
+  --cell-path:#1a3a2a;
+  --cell-start:#1a3a1a;
+  --cell-end:#3a1a1a;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);overflow:hidden;font-family:var(--sans)}
+
+/* ── LAYOUT ── */
+.app{height:100vh;display:grid;grid-template-rows:48px 1fr 32px;grid-template-columns:1fr 300px}
+.topbar{grid-column:1/-1;background:#070910;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:12px}
+.bottombar{grid-column:1/-1;background:#070910;border-top:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:16px}
+
+/* ── TOPBAR ── */
+.tb-dots{display:flex;gap:5px}
+.tb-dot{width:10px;height:10px;border-radius:50%}
+.tb-brand{font-size:12px;font-weight:900;letter-spacing:3px;font-family:var(--mono);color:var(--green)}
+.tb-brand em{color:var(--muted);font-style:normal}
+.tb-title{font-size:11px;color:var(--muted);font-family:var(--mono)}
+.tb-sep{width:1px;height:14px;background:var(--border2)}
+.top-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
+.btn{border:none;border-radius:8px;padding:6px 16px;font-family:var(--sans);font-weight:800;font-size:13px;cursor:pointer;transition:.15s;white-space:nowrap}
+.btn-green{background:var(--green);color:#000}
+.btn-green:hover{filter:brightness(1.1)}
+.btn-green:disabled{background:#1a3a2a;color:var(--muted);cursor:not-allowed}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border);font-size:12px;padding:5px 12px}
+.btn-ghost:hover{color:var(--text);border-color:var(--muted)}
+.btn-orange{background:var(--orange);color:#fff}
+.btn-orange:hover{filter:brightness(1.1)}
+.chip{background:var(--panel2);border:1px solid var(--border);border-radius:20px;padding:3px 12px;font-size:11px;font-family:var(--mono);color:var(--muted);white-space:nowrap}
+.chip.ok{color:var(--green);border-color:rgba(0,214,143,.4)}
+.chip.run{color:var(--yellow);border-color:rgba(234,179,8,.4)}
+.chip.done{color:var(--purple);border-color:rgba(167,139,250,.4)}
+.chip.err{color:var(--red);border-color:rgba(239,68,68,.4)}
+
+/* ── GRID AREA ── */
+.grid-area{position:relative;background:#080a10;display:flex;align-items:center;justify-content:center;overflow:hidden}
+#grid-canvas{display:block;cursor:crosshair}
+
+/* ── TOOL CURSOR STATES ── */
+.grid-area[data-tool="wall"]{cursor:cell}
+.grid-area[data-tool="erase"]{cursor:not-allowed}
+.grid-area[data-tool="start"]{cursor:crosshair}
+.grid-area[data-tool="end"]{cursor:crosshair}
+
+/* ── LEGEND overlay ── */
+.grid-legend{position:absolute;bottom:12px;left:12px;display:flex;flex-direction:column;gap:4px;pointer-events:none}
+.leg-item{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--muted);font-family:var(--mono)}
+.leg-swatch{width:12px;height:12px;border-radius:2px;flex-shrink:0;border:1px solid rgba(255,255,255,.1)}
+
+/* ── STATS OVERLAY ── */
+.stats-overlay{position:absolute;top:10px;left:10px;font-size:10px;font-family:var(--mono);color:var(--muted);line-height:1.8;pointer-events:none}
+.stats-overlay span{color:var(--text);font-weight:700}
+
+/* ── SIDEBAR ── */
+.sidebar{background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.sb-section{padding:12px;border-bottom:1px solid var(--border)}
+.sb-title{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);font-family:var(--mono);margin-bottom:10px}
+
+/* Tools */
+.tool-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.tool-btn{border-radius:8px;padding:8px 6px;font-size:12px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;border:1.5px solid var(--border2);background:var(--panel2);color:var(--muted);transition:.15s;font-family:var(--sans)}
+.tool-btn:hover{border-color:var(--text);color:var(--text)}
+.tool-btn.active{border-color:var(--green);color:var(--green);background:rgba(0,214,143,.08)}
+.tool-btn .ti{font-size:18px}
+.tool-btn .tl{font-size:10px}
+
+/* Algo selector */
+.algo-tabs{display:flex;gap:4px}
+.algo-tab{flex:1;padding:6px;border-radius:6px;border:1.5px solid var(--border2);background:var(--panel2);color:var(--muted);font-size:11px;font-weight:800;cursor:pointer;text-align:center;transition:.15s;font-family:var(--sans)}
+.algo-tab:hover{color:var(--text);border-color:var(--muted)}
+.algo-tab.active{border-color:var(--blue);color:var(--blue);background:rgba(56,189,248,.08)}
+
+/* Speed */
+.speed-row{display:flex;align-items:center;gap:8px}
+.speed-label{font-size:10px;color:var(--muted);font-family:var(--mono);white-space:nowrap}
+input[type=range]{-webkit-appearance:none;height:4px;background:var(--border2);border-radius:2px;outline:none;flex:1}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--green);cursor:pointer}
+
+/* Presets */
+.preset-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.preset-btn{border-radius:6px;padding:6px 8px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid var(--border2);background:var(--panel2);color:var(--muted);transition:.15s;font-family:var(--sans);text-align:left}
+.preset-btn:hover{border-color:var(--orange);color:var(--orange)}
+
+/* Explanation box */
+.expl-box{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:10px;margin:0 12px 10px}
+.expl-title{font-size:11px;font-weight:900;color:var(--blue);margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.expl-body{font-size:11px;color:var(--text);line-height:1.6}
+.expl-body b{color:var(--yellow)}
+.expl-body .tag{display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700;font-family:var(--mono)}
+.tag-green{background:rgba(0,214,143,.15);color:var(--green)}
+.tag-purple{background:rgba(167,139,250,.15);color:var(--purple)}
+.tag-orange{background:rgba(249,115,22,.15);color:var(--orange)}
+.tag-blue{background:rgba(56,189,248,.15);color:var(--blue)}
+
+/* Score panel */
+.score-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.score-card{background:var(--panel2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;text-align:center}
+.sc-val{font-size:20px;font-weight:900;font-family:var(--mono)}
+.sc-label{font-size:9px;color:var(--muted);letter-spacing:.5px;margin-top:1px}
+
+/* Bottom */
+.bb-item{font-size:10px;font-family:var(--mono);color:var(--muted)}
+.bb-item span{color:var(--text)}
+
+/* Notif */
+.notif{position:fixed;top:60px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:8px 18px;font-size:12px;z-index:200;opacity:0;transition:.3s;pointer-events:none;font-family:var(--sans);font-weight:700}
+.notif.show{opacity:1}
+.notif.green{border-color:var(--green);color:var(--green)}
+.notif.yellow{border-color:var(--yellow);color:var(--yellow)}
+.notif.red{border-color:var(--red);color:var(--red)}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* animations */
+@keyframes pop{0%{transform:scale(.8);opacity:0}60%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
+</style>
+</head>
+<body>
+<script src="shared/storage.js"></script>
+<script src="shared/auth.js"></script>
+<script>(function(){try{var s=JSON.parse(localStorage.getItem('bipboup_session'));if(!s||!s.username)throw 0;}catch(e){window.location.replace('index.html');}})()</script>
+<div class="app">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="tb-dots">
+      <div class="tb-dot" style="background:#ef4444"></div>
+      <div class="tb-dot" style="background:#eab308"></div>
+      <div class="tb-dot" style="background:#22c55e"></div>
+    </div>
+    <a href="index.html" style="font-size:11px;font-family:var(--mono);color:var(--muted);text-decoration:none;border:1px solid var(--border);border-radius:6px;padding:3px 10px;transition:.15s;white-space:nowrap" onmouseover="this.style.color='var(--green)';this.style.borderColor='var(--green)'" onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">← Plateforme</a>
+    <div class="tb-brand">BIP<em>BOUP</em></div>
+    <div class="tb-sep"></div>
+    <div class="tb-title">Visualiseur de Pathfinding — Comment le robot trouve son chemin</div>
+    <div class="top-actions">
+      <button class="btn btn-ghost" onclick="clearPath()">↺ Reset</button>
+      <button class="btn btn-ghost" onclick="clearAll()">🗑 Vider</button>
+      <button class="btn btn-orange" id="btnStep" onclick="stepOnce()">⏭ Étape</button>
+      <button class="btn btn-green" id="btnRun" onclick="startAlgo()">▶ Lancer</button>
+      <div class="chip" id="chip">Prêt — Dessine des murs, place départ/arrivée</div>
+    </div>
+  </div>
+
+  <!-- GRID -->
+  <div class="grid-area" id="gridArea" data-tool="wall">
+    <canvas id="grid-canvas"></canvas>
+
+    <div class="stats-overlay" id="statsOverlay">
+      Nœuds explorés: <span id="statExplored">0</span><br>
+      Chemin: <span id="statPath">—</span> cases<br>
+      Coût: <span id="statCost">—</span><br>
+      Itérations: <span id="statIter">0</span>
+    </div>
+
+    <div class="grid-legend">
+      <div class="leg-item"><div class="leg-swatch" style="background:#1e3a5f;border-color:#3b82f6"></div>Mur</div>
+      <div class="leg-item"><div class="leg-swatch" style="background:#00d68f;border-color:#00d68f"></div>Départ</div>
+      <div class="leg-item"><div class="leg-swatch" style="background:#ef4444;border-color:#ef4444"></div>Arrivée</div>
+      <div class="leg-item"><div class="leg-swatch" style="background:#1a3a2a;border-color:#00d68f;opacity:.7"></div>Exploré (ouvert)</div>
+      <div class="leg-item"><div class="leg-swatch" style="background:#2d1a2d;border-color:#a78bfa;opacity:.7"></div>Visité (fermé)</div>
+      <div class="leg-item"><div class="leg-swatch" style="background:#eab308;border-color:#eab308"></div>Chemin final</div>
+    </div>
+  </div>
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+
+    <!-- TOOLS -->
+    <div class="sb-section">
+      <div class="sb-title">Outils de dessin</div>
+      <div class="tool-grid">
+        <div class="tool-btn active" id="toolWall" onclick="setTool('wall')">
+          <span class="ti">🟦</span><span class="tl">Mur</span>
+        </div>
+        <div class="tool-btn" id="toolErase" onclick="setTool('erase')">
+          <span class="ti">🧹</span><span class="tl">Effacer</span>
+        </div>
+        <div class="tool-btn" id="toolStart" onclick="setTool('start')">
+          <span class="ti">🟢</span><span class="tl">Départ</span>
+        </div>
+        <div class="tool-btn" id="toolEnd" onclick="setTool('end')">
+          <span class="ti">🔴</span><span class="tl">Arrivée</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ALGO -->
+    <div class="sb-section">
+      <div class="sb-title">Algorithme</div>
+      <div class="algo-tabs">
+        <div class="algo-tab active" id="algoAstar" onclick="setAlgo('astar')">A★</div>
+        <div class="algo-tab" id="algoDijkstra" onclick="setAlgo('dijkstra')">Dijkstra</div>
+        <div class="algo-tab" id="algoBFS" onclick="setAlgo('bfs')">BFS</div>
+        <div class="algo-tab" id="algoDFS" onclick="setAlgo('dfs')">DFS</div>
+      </div>
+      <div style="margin-top:8px">
+        <div class="speed-row">
+          <span class="speed-label">Vitesse:</span>
+          <input type="range" id="speedSlider" min="1" max="10" value="5">
+          <span style="font-size:10px;color:var(--green);font-family:var(--mono);min-width:28px" id="speedLabel">×5</span>
+        </div>
+      </div>
+      <div style="margin-top:8px;display:flex;gap:6px;align-items:center">
+        <input type="checkbox" id="diagCheck" style="accent-color:var(--green)">
+        <label for="diagCheck" style="font-size:11px;color:var(--text);cursor:pointer">Mouvements diagonaux</label>
+      </div>
+    </div>
+
+    <!-- PRESETS -->
+    <div class="sb-section">
+      <div class="sb-title">Cartes prédéfinies</div>
+      <div class="preset-grid">
+        <div class="preset-btn" onclick="loadPreset('maze')">🌀 Labyrinthe</div>
+        <div class="preset-btn" onclick="loadPreset('corridor')">🚪 Couloir</div>
+        <div class="preset-btn" onclick="loadPreset('arena')">🤖 Arène</div>
+        <div class="preset-btn" onclick="loadPreset('random')">🎲 Aléatoire</div>
+      </div>
+    </div>
+
+    <!-- SCORE -->
+    <div class="sb-section">
+      <div class="sb-title">Résultats</div>
+      <div class="score-grid">
+        <div class="score-card">
+          <div class="sc-val" id="scExplored" style="color:var(--purple)">—</div>
+          <div class="sc-label">Nœuds explorés</div>
+        </div>
+        <div class="score-card">
+          <div class="sc-val" id="scPath" style="color:var(--yellow)">—</div>
+          <div class="sc-label">Longueur chemin</div>
+        </div>
+        <div class="score-card">
+          <div class="sc-val" id="scTime" style="color:var(--cyan)">—</div>
+          <div class="sc-label">Temps (ms)</div>
+        </div>
+        <div class="score-card">
+          <div class="sc-val" id="scEff" style="color:var(--green)">—</div>
+          <div class="sc-label">Efficacité</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EXPLANATION -->
+    <div style="flex:1;overflow-y:auto;padding-bottom:10px">
+      <div class="expl-box" id="explBox">
+        <div class="expl-title">📖 <span id="explTitle">Comment ça marche ?</span></div>
+        <div class="expl-body" id="explBody">
+          Choisis un algorithme, dessine des murs, et lance la visualisation pour voir comment le robot trouve son chemin étape par étape.<br><br>
+          <b>A★</b> est l'algorithme qu'on utilise sur BipBoup — il est <b>rapide</b> et trouve toujours le <b>chemin le plus court</b>.
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- BOTTOMBAR -->
+  <div class="bottombar">
+    <div class="bb-item">Grille: <span id="bbGrid">—</span></div>
+    <div class="bb-item">Outil: <span id="bbTool">Mur</span></div>
+    <div class="bb-item">Algo: <span id="bbAlgo">A★</span></div>
+    <div class="bb-item" id="bbMouse">Souris: <span>—</span></div>
+    <div style="margin-left:auto;font-size:10px;color:var(--muted);font-family:var(--mono)">Club BipBoup · 3iL · Coupe de France de Robotique</div>
+  </div>
+</div>
+
+<div class="notif" id="notif"></div>
+
+<script>
+// ══════════════════════════════════════════════
+// CONSTANTS
+// ══════════════════════════════════════════════
+const CELL = 22;
+let COLS = 30, ROWS = 22;
+
+// Cell states
+const EMPTY = 0, WALL = 1, START = 2, END = 3, OPEN = 4, CLOSED = 5, PATH = 6;
+
+// Colors
+const COLORS = {
+  [EMPTY]:  '#0d1017',
+  [WALL]:   null, // drawn with gradient
+  [START]:  '#00d68f',
+  [END]:    '#ef4444',
+  [OPEN]:   null, // animated
+  [CLOSED]: null, // animated
+  [PATH]:   '#eab308',
+};
+
+// ══════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════
+let grid = [];
+let startCell = null, endCell = null;
+let tool = 'wall';
+let algo = 'astar';
+let running = false;
+let animHandle = null;
+let stepMode = false;
+
+// Algo state
+let openSet = [], closedSet = new Set(), cameFrom = {}, gScore = {}, fScore = {};
+let bfsQueue = [], dfsStack = [], visited = new Set();
+let iterCount = 0, exploredCount = 0;
+let pathCells = [], foundPath = false;
+let algoStartTime = 0;
+
+let mouseDown = false;
+let lastMouseCol = -1, lastMouseRow = -1;
+
+// ══════════════════════════════════════════════
+// CANVAS SETUP
+// ══════════════════════════════════════════════
+const canvas = document.getElementById('grid-canvas');
+const ctx = canvas.getContext('2d');
+
+function initGrid() {
+  const area = document.getElementById('gridArea');
+  const W = area.clientWidth, H = area.clientHeight;
+  COLS = Math.floor(W / CELL);
+  ROWS = Math.floor(H / CELL);
+  canvas.width = COLS * CELL;
+  canvas.height = ROWS * CELL;
+  canvas.style.width = canvas.width + 'px';
+  canvas.style.height = canvas.height + 'px';
+  document.getElementById('bbGrid').textContent = `${COLS}×${ROWS}`;
+
+  grid = Array.from({ length: ROWS }, () => Array(COLS).fill(EMPTY));
+  startCell = { r: Math.floor(ROWS / 2), c: Math.floor(COLS * .15) };
+  endCell   = { r: Math.floor(ROWS / 2), c: Math.floor(COLS * .85) };
+  grid[startCell.r][startCell.c] = START;
+  grid[endCell.r][endCell.c] = END;
+  draw();
+}
+
+// ══════════════════════════════════════════════
+// DRAW
+// ══════════════════════════════════════════════
+let animT = 0;
+function draw() {
+  animT += .04;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#080a10';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const x = c * CELL, y = r * CELL, s = grid[r][c];
+      const px = x + 1, py = y + 1, pw = CELL - 2, ph = CELL - 2;
+
+      if (s === EMPTY) {
+        ctx.fillStyle = '#0d1017';
+        ctx.fillRect(px, py, pw, ph);
+        // subtle grid dot
+        ctx.fillStyle = 'rgba(30,37,53,.8)';
+        ctx.fillRect(px + pw/2 - .5, py + ph/2 - .5, 1, 1);
+      } else if (s === WALL) {
+        // Gradient wall
+        const g = ctx.createLinearGradient(px, py, px+pw, py+ph);
+        g.addColorStop(0, '#1e3a5f'); g.addColorStop(1, '#0f2040');
+        ctx.fillStyle = g;
+        ctx.fillRect(px, py, pw, ph);
+        ctx.strokeStyle = 'rgba(59,130,246,.5)'; ctx.lineWidth = .8;
+        ctx.strokeRect(px, py, pw, ph);
+        // Hatch
+        ctx.save(); ctx.beginPath(); ctx.rect(px,py,pw,ph); ctx.clip();
+        ctx.strokeStyle = 'rgba(59,130,246,.1)'; ctx.lineWidth = .5;
+        for (let i=-ph; i<pw+ph; i+=7) {
+          ctx.beginPath(); ctx.moveTo(px+i,py); ctx.lineTo(px+i+ph,py+ph); ctx.stroke();
+        }
+        ctx.restore();
+      } else if (s === START) {
+        const pulse = .85 + Math.sin(animT * 2) * .15;
+        ctx.fillStyle = `rgba(0,214,143,${pulse})`;
+        ctx.fillRect(px, py, pw, ph);
+        ctx.fillStyle = '#000'; ctx.font = `bold ${CELL*.55}px sans-serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('S', x + CELL/2, y + CELL/2);
+      } else if (s === END) {
+        const pulse = .85 + Math.sin(animT * 2 + 1) * .15;
+        ctx.fillStyle = `rgba(239,68,68,${pulse})`;
+        ctx.fillRect(px, py, pw, ph);
+        ctx.fillStyle = '#fff'; ctx.font = `bold ${CELL*.55}px sans-serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('E', x + CELL/2, y + CELL/2);
+      } else if (s === OPEN) {
+        // Explored but not yet processed — green tint, wave
+        const wave = .25 + Math.sin(animT * 3 + c * .3 + r * .3) * .1;
+        ctx.fillStyle = `rgba(0,214,143,${wave})`;
+        ctx.fillRect(px, py, pw, ph);
+        ctx.strokeStyle = `rgba(0,214,143,.4)`; ctx.lineWidth = .5;
+        ctx.strokeRect(px, py, pw, ph);
+      } else if (s === CLOSED) {
+        // Already processed — purple
+        const fade = .18 + Math.sin(animT * .5 + c * .1) * .05;
+        ctx.fillStyle = `rgba(167,139,250,${fade})`;
+        ctx.fillRect(px, py, pw, ph);
+        ctx.strokeStyle = 'rgba(167,139,250,.25)'; ctx.lineWidth = .3;
+        ctx.strokeRect(px, py, pw, ph);
+      } else if (s === PATH) {
+        // Final path — yellow/gold animated
+        const glow = .8 + Math.sin(animT * 4 + c * .4) * .2;
+        ctx.fillStyle = `rgba(234,179,8,${glow})`;
+        ctx.fillRect(px, py, pw, ph);
+        // Center dot
+        ctx.fillStyle = 'rgba(0,0,0,.4)';
+        ctx.beginPath(); ctx.arc(x+CELL/2, y+CELL/2, 3, 0, Math.PI*2); ctx.fill();
+      }
+    }
+  }
+
+  // Draw path line on top
+  if (pathCells.length > 1) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(234,179,8,.7)';
+    ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.setLineDash([4,2]);
+    ctx.beginPath();
+    pathCells.forEach((p, i) => {
+      const px = p.c * CELL + CELL/2, py = p.r * CELL + CELL/2;
+      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  // fScore heatmap labels (A* only, when not too many cells)
+  if (algo === 'astar' && exploredCount < 200 && !foundPath) {
+    ctx.font = `${CELL*.32}px JetBrains Mono,monospace`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (const key in fScore) {
+      const [r, c] = key.split(',').map(Number);
+      if (grid[r] && (grid[r][c] === OPEN || grid[r][c] === CLOSED)) {
+        ctx.fillStyle = grid[r][c] === OPEN ? 'rgba(0,214,143,.5)' : 'rgba(167,139,250,.4)';
+        ctx.fillText(Math.round(fScore[key]), c*CELL+CELL/2, r*CELL+CELL/2);
+      }
+    }
+  }
+
+  if (running || foundPath) requestAnimationFrame(draw);
+}
+
+// ══════════════════════════════════════════════
+// PATHFINDING ALGORITHMS
+// ══════════════════════════════════════════════
+const h = (a, b) => {
+  // Heuristic: Manhattan or Euclidean
+  const dc = Math.abs(a.c - b.c), dr = Math.abs(a.r - b.r);
+  return document.getElementById('diagCheck').checked
+    ? Math.max(dc, dr)  // Chebyshev for diagonal
+    : dc + dr;          // Manhattan
+};
+
+const key = (r, c) => `${r},${c}`;
+
+const DIRS4 = [[-1,0],[1,0],[0,-1],[0,1]];
+const DIRS8 = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]];
+
+function getDirs() {
+  return document.getElementById('diagCheck').checked ? DIRS8 : DIRS4;
+}
+
+function getNeighbors(r, c) {
+  return getDirs()
+    .map(([dr, dc]) => ({ r: r+dr, c: c+dc }))
+    .filter(n => n.r>=0 && n.r<ROWS && n.c>=0 && n.c<COLS && grid[n.r][n.c] !== WALL);
+}
+
+function moveCost(a, b) {
+  return Math.abs(a.r-b.r) + Math.abs(a.c-b.c) > 1 ? 1.414 : 1;
+}
+
+// ── INIT ALGO ──
+function initAlgo() {
+  if (!startCell || !endCell) return false;
+  // Clear previous algo state from grid (keep walls, start, end)
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++)
+      if (grid[r][c] === OPEN || grid[r][c] === CLOSED || grid[r][c] === PATH)
+        grid[r][c] = EMPTY;
+
+  pathCells = []; foundPath = false;
+  iterCount = 0; exploredCount = 0;
+  algoStartTime = performance.now();
+  updateStats();
+
+  const sk = key(startCell.r, startCell.c);
+
+  if (algo === 'astar') {
+    openSet = [{ r: startCell.r, c: startCell.c, f: 0 }];
+    closedSet = new Set();
+    cameFrom = {};
+    gScore = { [sk]: 0 };
+    fScore = { [sk]: h(startCell, endCell) };
+  } else if (algo === 'dijkstra') {
+    openSet = [{ r: startCell.r, c: startCell.c, g: 0 }];
+    closedSet = new Set();
+    cameFrom = {};
+    gScore = { [sk]: 0 };
+  } else if (algo === 'bfs') {
+    bfsQueue = [{ r: startCell.r, c: startCell.c }];
+    visited = new Set([sk]);
+    cameFrom = {};
+  } else if (algo === 'dfs') {
+    dfsStack = [{ r: startCell.r, c: startCell.c }];
+    visited = new Set([sk]);
+    cameFrom = {};
+  }
+  return true;
+}
+
+// ── STEP FUNCTIONS ──
+function stepAstar() {
+  if (!openSet.length) return 'no_path';
+  openSet.sort((a, b) => (fScore[key(a.r,a.c)]||Infinity) - (fScore[key(b.r,b.c)]||Infinity));
+  const cur = openSet.shift();
+  const ck = key(cur.r, cur.c);
+  if (cur.r === endCell.r && cur.c === endCell.c) return 'found';
+  closedSet.add(ck);
+  if (grid[cur.r][cur.c] !== START && grid[cur.r][cur.c] !== END) { grid[cur.r][cur.c] = CLOSED; exploredCount++; }
+  for (const nb of getNeighbors(cur.r, cur.c)) {
+    const nk = key(nb.r, nb.c);
+    if (closedSet.has(nk)) continue;
+    const tg = (gScore[ck] || 0) + moveCost(cur, nb);
+    if (tg < (gScore[nk] ?? Infinity)) {
+      cameFrom[nk] = cur;
+      gScore[nk] = tg;
+      fScore[nk] = tg + h(nb, endCell);
+      if (!openSet.find(n => key(n.r,n.c) === nk)) {
+        openSet.push(nb);
+        if (grid[nb.r][nb.c] !== START && grid[nb.r][nb.c] !== END) grid[nb.r][nb.c] = OPEN;
+      }
+    }
+  }
+  return 'running';
+}
+
+function stepDijkstra() {
+  if (!openSet.length) return 'no_path';
+  openSet.sort((a,b) => (gScore[key(a.r,a.c)]||Infinity) - (gScore[key(b.r,b.c)]||Infinity));
+  const cur = openSet.shift();
+  const ck = key(cur.r, cur.c);
+  if (cur.r === endCell.r && cur.c === endCell.c) return 'found';
+  if (closedSet.has(ck)) return 'running';
+  closedSet.add(ck);
+  if (grid[cur.r][cur.c] !== START) { grid[cur.r][cur.c] = CLOSED; exploredCount++; }
+  for (const nb of getNeighbors(cur.r, cur.c)) {
+    const nk = key(nb.r, nb.c);
+    if (closedSet.has(nk)) continue;
+    const tg = (gScore[ck]||0) + moveCost(cur, nb);
+    if (tg < (gScore[nk] ?? Infinity)) {
+      cameFrom[nk] = cur;
+      gScore[nk] = tg;
+      openSet.push(nb);
+      if (grid[nb.r][nb.c] !== START && grid[nb.r][nb.c] !== END) grid[nb.r][nb.c] = OPEN;
+    }
+  }
+  return 'running';
+}
+
+function stepBFS() {
+  if (!bfsQueue.length) return 'no_path';
+  const cur = bfsQueue.shift();
+  if (cur.r === endCell.r && cur.c === endCell.c) return 'found';
+  if (grid[cur.r][cur.c] !== START) { grid[cur.r][cur.c] = CLOSED; exploredCount++; }
+  for (const nb of getNeighbors(cur.r, cur.c)) {
+    const nk = key(nb.r, nb.c);
+    if (!visited.has(nk)) {
+      visited.add(nk);
+      cameFrom[nk] = cur;
+      bfsQueue.push(nb);
+      if (grid[nb.r][nb.c] !== START && grid[nb.r][nb.c] !== END) grid[nb.r][nb.c] = OPEN;
+    }
+  }
+  return 'running';
+}
+
+function stepDFS() {
+  if (!dfsStack.length) return 'no_path';
+  const cur = dfsStack.pop();
+  const ck = key(cur.r, cur.c);
+  if (cur.r === endCell.r && cur.c === endCell.c) return 'found';
+  if (visited.has(ck) && ck !== key(startCell.r, startCell.c)) return 'running';
+  visited.add(ck);
+  if (grid[cur.r][cur.c] !== START) { grid[cur.r][cur.c] = CLOSED; exploredCount++; }
+  for (const nb of getNeighbors(cur.r, cur.c)) {
+    const nk = key(nb.r, nb.c);
+    if (!visited.has(nk)) {
+      cameFrom[nk] = cur;
+      dfsStack.push(nb);
+      if (grid[nb.r][nb.c] !== START && grid[nb.r][nb.c] !== END) grid[nb.r][nb.c] = OPEN;
+    }
+  }
+  return 'running';
+}
+
+function doStep() {
+  let result;
+  if (algo === 'astar')     result = stepAstar();
+  else if (algo === 'dijkstra') result = stepDijkstra();
+  else if (algo === 'bfs')  result = stepBFS();
+  else                       result = stepDFS();
+  iterCount++;
+  updateStats();
+  return result;
+}
+
+function reconstructPath() {
+  pathCells = [];
+  let cur = endCell;
+  const ek = key(endCell.r, endCell.c);
+  while (cameFrom[key(cur.r, cur.c)]) {
+    pathCells.unshift(cur);
+    cur = cameFrom[key(cur.r, cur.c)];
+    if (grid[cur.r][cur.c] !== START && grid[cur.r][cur.c] !== END) grid[cur.r][cur.c] = PATH;
+  }
+  pathCells.unshift(startCell);
+}
+
+// ══════════════════════════════════════════════
+// RUN CONTROL
+// ══════════════════════════════════════════════
+let stepBuffer = 0;
+
+function startAlgo() {
+  if (running) { stopAlgo(); return; }
+  if (!startCell || !endCell) { showNotif('Place un départ 🟢 et une arrivée 🔴 !', 'red'); return; }
+  if (!initAlgo()) return;
+  running = true;
+  stepMode = false;
+  document.getElementById('btnRun').textContent = '■ Stop';
+  document.getElementById('btnRun').className = 'btn btn-orange';
+  setChip('En cours…', 'run');
+  updateExpl('running');
+  requestAnimationFrame(runLoop);
+  requestAnimationFrame(draw);
+}
+
+function stopAlgo() {
+  running = false;
+  document.getElementById('btnRun').textContent = '▶ Lancer';
+  document.getElementById('btnRun').className = 'btn btn-green';
+}
+
+let lastTS = null;
+function runLoop(ts) {
+  if (!running) return;
+  if (!lastTS) lastTS = ts;
+  const dt = ts - lastTS;
+  lastTS = ts;
+
+  const speed = parseInt(document.getElementById('speedSlider').value);
+  const stepsPerFrame = Math.max(1, speed * speed);
+
+  for (let i = 0; i < stepsPerFrame; i++) {
+    const result = doStep();
+    if (result === 'found') {
+      reconstructPath();
+      foundPath = true;
+      running = false;
+      onFound();
+      requestAnimationFrame(draw);
+      return;
+    }
+    if (result === 'no_path') {
+      running = false;
+      onNoPath();
+      requestAnimationFrame(draw);
+      return;
+    }
+  }
+  requestAnimationFrame(runLoop);
+}
+
+function stepOnce() {
+  if (running) return;
+  if (!openSet.length && !bfsQueue.length && !dfsStack.length && iterCount === 0) {
+    if (!startCell || !endCell) { showNotif('Place départ et arrivée d\'abord !', 'red'); return; }
+    initAlgo();
+    requestAnimationFrame(draw);
+    setChip('Mode pas-à-pas', 'run');
+    updateExpl('running');
+  }
+  const result = doStep();
+  if (result === 'found') { reconstructPath(); foundPath = true; onFound(); }
+  else if (result === 'no_path') { onNoPath(); }
+  requestAnimationFrame(draw);
+}
+
+function onFound() {
+  const elapsed = (performance.now() - algoStartTime).toFixed(1);
+  const eff = exploredCount > 0 ? Math.round((pathCells.length / exploredCount) * 100) : 0;
+  document.getElementById('scExplored').textContent = exploredCount;
+  document.getElementById('scPath').textContent = pathCells.length;
+  document.getElementById('scTime').textContent = elapsed;
+  document.getElementById('scEff').textContent = eff + '%';
+  setChip(`✅ Chemin trouvé ! ${pathCells.length} cases · ${exploredCount} explorés`, 'done');
+  stopAlgo();
+  updateExpl('found');
+  showNotif(`🎉 Chemin trouvé en ${elapsed}ms !`, 'green');
+}
+
+function onNoPath() {
+  setChip('❌ Aucun chemin possible', 'err');
+  stopAlgo();
+  updateExpl('nopath');
+  showNotif('Pas de chemin — essaie d\'enlever des murs', 'red');
+}
+
+function clearPath() {
+  stopAlgo();
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++)
+      if (grid[r][c] === OPEN || grid[r][c] === CLOSED || grid[r][c] === PATH)
+        grid[r][c] = EMPTY;
+  pathCells = []; foundPath = false; iterCount = 0; exploredCount = 0;
+  openSet = []; bfsQueue = []; dfsStack = [];
+  closedSet = new Set(); visited = new Set();
+  gScore = {}; fScore = {}; cameFrom = {};
+  updateStats();
+  setChip('Prêt', '');
+  requestAnimationFrame(draw);
+}
+
+function clearAll() {
+  clearPath();
+  grid = Array.from({ length: ROWS }, () => Array(COLS).fill(EMPTY));
+  startCell = { r: Math.floor(ROWS/2), c: Math.floor(COLS*.15) };
+  endCell   = { r: Math.floor(ROWS/2), c: Math.floor(COLS*.85) };
+  grid[startCell.r][startCell.c] = START;
+  grid[endCell.r][endCell.c] = END;
+  requestAnimationFrame(draw);
+}
+
+// ══════════════════════════════════════════════
+// PRESETS
+// ══════════════════════════════════════════════
+function loadPreset(name) {
+  clearAll();
+  const w = (r, c) => { if (r>=0&&r<ROWS&&c>=0&&c<COLS&&grid[r][c]===EMPTY) grid[r][c]=WALL; };
+  const wRow = (r, c1, c2) => { for(let c=c1;c<=c2;c++) w(r,c); };
+  const wCol = (c, r1, r2) => { for(let r=r1;r<=r2;r++) w(r,c); };
+
+  if (name === 'maze') {
+    // Serpentine 3-barrier maze — gap right/left/right
+    const b1 = Math.floor(COLS * .25);
+    const b2 = Math.floor(COLS * .50);
+    const b3 = Math.floor(COLS * .75);
+    const gapH = Math.floor(ROWS * .28); // gap size in rows
+
+    // Barrier 1: full height except gap at bottom-right
+    wCol(b1, 1, ROWS - gapH - 2);
+    // Barrier 2: full height except gap at top-left
+    wCol(b2, gapH + 1, ROWS - 2);
+    // Barrier 3: full height except gap at bottom-right
+    wCol(b3, 1, ROWS - gapH - 2);
+
+    // Internal vertical obstacles for interest
+    wCol(Math.floor(COLS*.13), Math.floor(ROWS*.3), Math.floor(ROWS*.6));
+    wCol(Math.floor(COLS*.37), Math.floor(ROWS*.25), Math.floor(ROWS*.55));
+    wCol(Math.floor(COLS*.87), Math.floor(ROWS*.4), Math.floor(ROWS*.7));
+
+    startCell = { r: Math.floor(ROWS * .5), c: 2 };
+    endCell   = { r: Math.floor(ROWS * .5), c: COLS - 3 };
+  } else if (name === 'corridor') {
+    // Wide horizontal corridor with internal dividers forcing top/bottom alternation
+    const topWall = Math.floor(ROWS * .2);
+    const botWall = Math.floor(ROWS * .8);
+
+    // Top and bottom corridor walls
+    wRow(topWall,    2, COLS - 3);
+    wRow(botWall,    2, COLS - 3);
+
+    // Internal dividers — alternating top/bottom gaps
+    const d1 = Math.floor(COLS * .28);
+    const d2 = Math.floor(COLS * .50);
+    const d3 = Math.floor(COLS * .72);
+    const midR = Math.floor((topWall + botWall) / 2);
+
+    // Divider 1: attached to top wall, gap at bottom
+    wCol(d1, topWall + 1, midR + 2);
+    // Divider 2: attached to bottom wall, gap at top
+    wCol(d2, midR - 2, botWall - 1);
+    // Divider 3: attached to top wall, gap at bottom
+    wCol(d3, topWall + 1, midR + 2);
+
+    startCell = { r: midR, c: 2 };
+    endCell   = { r: midR, c: COLS - 3 };
+  } else if (name === 'arena') {
+    // Coupe de France style: 4 corner bacs, center wall with middle gap, start/end zones
+    const mc = Math.floor(COLS / 2);
+    const mr = Math.floor(ROWS / 2);
+
+    // 4 corner bac obstacles (rectangular plant boxes)
+    const bacW = Math.floor(COLS * .12);
+    const bacH = Math.floor(ROWS * .20);
+    // Top-left bac
+    for(let dr=0;dr<bacH;dr++) wRow(2+dr, 2, 2+bacW-1);
+    // Top-right bac
+    for(let dr=0;dr<bacH;dr++) wRow(2+dr, COLS-3-bacW, COLS-3);
+    // Bottom-left bac
+    for(let dr=0;dr<bacH;dr++) wRow(ROWS-3-bacH+dr, 2, 2+bacW-1);
+    // Bottom-right bac
+    for(let dr=0;dr<bacH;dr++) wRow(ROWS-3-bacH+dr, COLS-3-bacW, COLS-3);
+
+    // Center vertical wall with gap in the middle
+    const wallH = Math.floor(ROWS * .30);
+    wCol(mc, 2, mr - wallH - 1);        // top part
+    wCol(mc, mr + wallH + 1, ROWS - 3); // bottom part
+
+    // Horizontal cross-beams off center wall
+    wRow(mr - wallH - 1, mc - 3, mc);
+    wRow(mr + wallH + 1, mc, mc + 3);
+
+    startCell = { r: mr, c: Math.floor(COLS * .12) };
+    endCell   = { r: mr, c: Math.floor(COLS * .88) };
+  } else if (name === 'random') {
+    // 30% random walls
+    for (let r=0; r<ROWS; r++)
+      for (let c=0; c<COLS; c++) {
+        if (grid[r][c]===EMPTY && Math.random()<.3) grid[r][c]=WALL;
+      }
+  }
+  // Purge les anciens marqueurs START/END laissés par clearAll() avant de placer les nouveaux
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) if(grid[r][c]===START||grid[r][c]===END) grid[r][c]=EMPTY;
+  grid[startCell.r][startCell.c] = START;
+  grid[endCell.r][endCell.c] = END;
+  setChip('Carte chargée — Lance l\'algo !', '');
+  requestAnimationFrame(draw);
+}
+
+// ══════════════════════════════════════════════
+// MOUSE INTERACTION
+// ══════════════════════════════════════════════
+canvas.addEventListener('mousedown', e => { mouseDown=true; handleMouse(e); });
+canvas.addEventListener('mousemove', e => { if(mouseDown) handleMouse(e); updateMouseLabel(e); });
+canvas.addEventListener('mouseup', () => mouseDown=false);
+canvas.addEventListener('mouseleave', () => mouseDown=false);
+canvas.addEventListener('contextmenu', e => { e.preventDefault(); tool='erase'; handleMouse(e); tool=document.getElementById('toolWall').classList.contains('active')?'wall':'erase'; });
+
+function getCell(e) {
+  const r = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / r.width, scaleY = canvas.height / r.height;
+  return {
+    c: Math.floor((e.clientX-r.left)*scaleX/CELL),
+    r: Math.floor((e.clientY-r.top)*scaleY/CELL)
+  };
+}
+
+function handleMouse(e) {
+  if (running) return;
+  const {r, c} = getCell(e);
+  if (r<0||r>=ROWS||c<0||c>=COLS) return;
+  if (r===lastMouseRow && c===lastMouseCol) return;
+  lastMouseRow=r; lastMouseCol=c;
+
+  const rightClick = e.buttons===2;
+  const effectiveTool = rightClick ? 'erase' : tool;
+
+  if (effectiveTool==='wall') {
+    if (grid[r][c]===EMPTY) { grid[r][c]=WALL; clearPath(); requestAnimationFrame(draw); }
+  } else if (effectiveTool==='erase') {
+    if (grid[r][c]===WALL) { grid[r][c]=EMPTY; clearPath(); requestAnimationFrame(draw); }
+  } else if (effectiveTool==='start') {
+    if (grid[r][c]!==WALL && grid[r][c]!==END) {
+      if (startCell) grid[startCell.r][startCell.c]=EMPTY;
+      startCell={r,c}; grid[r][c]=START; clearPath(); requestAnimationFrame(draw);
+    }
+  } else if (effectiveTool==='end') {
+    if (grid[r][c]!==WALL && grid[r][c]!==START) {
+      if (endCell) grid[endCell.r][endCell.c]=EMPTY;
+      endCell={r,c}; grid[r][c]=END; clearPath(); requestAnimationFrame(draw);
+    }
+  }
+}
+
+function updateMouseLabel(e) {
+  const {r,c}=getCell(e);
+  document.getElementById('bbMouse').innerHTML=`Souris: <span>(${c}, ${r})</span>`;
+}
+
+// ══════════════════════════════════════════════
+// UI
+// ══════════════════════════════════════════════
+function setTool(t) {
+  tool = t;
+  ['toolWall','toolErase','toolStart','toolEnd'].forEach(id=>document.getElementById(id).classList.remove('active'));
+  document.getElementById('tool'+t.charAt(0).toUpperCase()+t.slice(1)).classList.add('active');
+  document.getElementById('gridArea').dataset.tool=t;
+  document.getElementById('bbTool').textContent=
+    t==='wall'?'Mur':t==='erase'?'Effacer':t==='start'?'Départ':'Arrivée';
+}
+
+function setAlgo(a) {
+  algo = a;
+  ['algoAstar','algoDijkstra','algoBFS','algoDFS'].forEach(id=>document.getElementById(id).classList.remove('active'));
+  const algoIds = {astar:'algoAstar',dijkstra:'algoDijkstra',bfs:'algoBFS',dfs:'algoDFS'};
+  document.getElementById(algoIds[a]).classList.add('active');
+  const names={astar:'A★',dijkstra:'Dijkstra',bfs:'BFS',dfs:'DFS'};
+  document.getElementById('bbAlgo').textContent=names[a];
+  clearPath();
+  updateExpl('idle');
+}
+
+function updateStats() {
+  document.getElementById('statExplored').textContent=exploredCount;
+  document.getElementById('statIter').textContent=iterCount;
+  document.getElementById('statPath').textContent=pathCells.length||'—';
+  document.getElementById('statCost').textContent=
+    pathCells.length ? (gScore[key(endCell.r,endCell.c)]??'—') : '—';
+}
+
+function setChip(txt, cls) {
+  const c=document.getElementById('chip');
+  c.textContent=txt; c.className='chip'+(cls?' '+cls:'');
+}
+
+// ── EXPLANATIONS per algo & state ──
+const EXPLS = {
+  astar: {
+    idle:  {
+      title:'A★ — L\'algorithme de BipBoup',
+      body:'A★ combine la <b>distance réelle</b> parcourue depuis le départ + une <b>estimation</b> de la distance restante (heuristique).<br><br>Il est <b>optimal</b> (trouve toujours le plus court chemin) et <b>rapide</b> grâce à l\'heuristique qui guide la recherche.<br><br><span class="tag tag-green">f(n) = g(n) + h(n)</span><br><small style="color:var(--muted)">g = coût réel · h = estimation</small>',
+      hist: 'Inventé par Peter Hart, Nils Nilsson et Bertram Raphael en 1968 au Stanford Research Institute. Publié dans IEEE Transactions on Systems Science and Cybernetics. Base de tous les systèmes de navigation modernes.'
+    },
+    running:{ title:'A★ — En recherche…', body:'Les cases <span class="tag tag-green">vertes</span> sont dans la <b>liste ouverte</b> (à explorer).<br>Les cases <span class="tag tag-purple">violettes</span> sont dans la <b>liste fermée</b> (déjà traitées).<br><br>A★ choisit toujours la case avec le <b>f(n) le plus bas</b> — les petits chiffres sur les cases.<br><br>Remarque comme il explore <b>en direction de l\'arrivée</b> !' },
+    found: { title:'A★ — Chemin optimal !', body:'Le chemin <span class="tag tag-orange">doré</span> est <b>garanti optimal</b> — il n\'existe pas de chemin plus court.<br><br>A★ a exploré beaucoup moins de cases qu\'une recherche aveugle grâce à son heuristique.<br><br>C\'est pourquoi les robots autonomes comme BipBoup l\'utilisent ! 🤖' },
+    nopath:{ title:'A★ — Sans issue', body:'Toutes les cases accessibles ont été explorées et l\'arrivée est <b>inaccessible</b>.<br><br>A★ a exploré l\'intégralité de l\'espace accessible — il ne peut pas rater un chemin s\'il existe.' },
+  },
+  dijkstra: {
+    idle:  {
+      title:'Dijkstra — Le précurseur',
+      body:'Dijkstra explore les nœuds par <b>coût croissant</b> depuis le départ. Il garantit le chemin le plus court mais <b>explore dans toutes les directions</b>.<br><br>Plus lent qu\'A★ car il n\'a pas d\'heuristique pour se diriger vers l\'arrivée.<br><br><span class="tag tag-blue">g(n) = coût minimal depuis départ</span>',
+      hist: 'Conçu par Edsger Dijkstra en 1956 en 20 minutes, sans papier ni crayon, dans un café d\'Amsterdam. Publié en 1959. L\'un des algorithmes les plus influents de l\'informatique.'
+    },
+    running:{ title:'Dijkstra — Expansion radiale', body:'Remarque l\'expansion <b>en vague circulaire</b> autour du départ — sans direction préférentielle.<br><br>Chaque case <span class="tag tag-purple">violette</span> a son coût minimal <b>définitivement calculé</b>.<br><br>Contrairement à A★, Dijkstra ne sait pas où est l\'arrivée.' },
+    found: { title:'Dijkstra — Chemin trouvé', body:'Le chemin est <b>optimal</b> comme A★, mais Dijkstra a exploré <b>beaucoup plus de cases</b>.<br><br>Compare les stats avec A★ sur la même carte — l\'efficacité est très différente !' },
+    nopath:{ title:'Dijkstra — Sans issue', body:'Dijkstra a exploré tout l\'espace accessible. Aucun chemin n\'existe.' },
+  },
+  bfs: {
+    idle:  {
+      title:'BFS — Recherche en largeur',
+      body:'BFS (Breadth-First Search) explore <b>couche par couche</b> depuis le départ, comme une onde qui se propage.<br><br>Garantit le chemin le plus court <b>en nombre de cases</b> (pas en coût si les poids varient).<br><br><span class="tag tag-blue">FIFO — File d\'attente</span>',
+      hist: 'Formalisé par Konrad Zuse en 1945 dans sa thèse (non publiée), puis par Edward Moore en 1959 pour trouver le plus court chemin dans un labyrinthe. Fondement des réseaux sociaux modernes (6 degrés de séparation).'
+    },
+    running:{ title:'BFS — Propagation en couches', body:'BFS explore toutes les cases à <b>distance 1</b>, puis toutes à <b>distance 2</b>, etc.<br><br>C\'est une exploration "naïve" mais très simple. Pas d\'heuristique, pas de priorité — juste l\'ordre d\'arrivée.' },
+    found: { title:'BFS — Chemin le plus court !', body:'BFS garantit le chemin le plus court <b>en nombre de pas</b>.<br><br>Mais il explore souvent beaucoup plus de cases qu\'A★ — car il part dans toutes les directions également.' },
+    nopath:{ title:'BFS — Espace épuisé', body:'Toutes les cases atteignables ont été visitées. Pas de chemin possible.' },
+  },
+  dfs: {
+    idle:  {
+      title:'DFS — Recherche en profondeur',
+      body:'DFS (Depth-First Search) s\'enfonce dans <b>une direction</b> jusqu\'au bout avant de revenir en arrière (backtrack).<br><br>Il est <b>rapide</b> à trouver un chemin mais <b>pas optimal</b> — il peut trouver un chemin très long.<br><br><span class="tag tag-orange">LIFO — Pile</span>',
+      hist: 'Utilisé par les mathématiciens depuis le 19e siècle pour résoudre des labyrinthes. Formalisé par Charles Pierre Trémaux. Robert Tarjan l\'a adapté en 1972 pour trouver les composantes fortement connexes.'
+    },
+    running:{ title:'DFS — Exploration en profondeur', body:'Remarque comme DFS s\'enfonce dans <b>une seule direction</b> sans regarder les alternatives.<br><br>Ce comportement est imprévisible et peut donner de mauvais chemins — c\'est pourquoi les robots n\'utilisent pas DFS pour naviguer !' },
+    found: { title:'DFS — Chemin trouvé (pas optimal !)', body:'DFS a trouvé <b>un</b> chemin, mais <b>probablement pas le plus court</b>.<br><br>Compare avec A★ : même carte, chemin bien plus long avec DFS !<br><br>C\'est pourquoi BipBoup utilise A★ et non DFS. 😅' },
+    nopath:{ title:'DFS — Espace épuisé', body:'DFS a exploré toutes les branches accessibles. Aucun chemin possible.' },
+  },
+};
+
+function updateExpl(state) {
+  const e = EXPLS[algo]?.[state] || EXPLS.astar.idle;
+  document.getElementById('explTitle').textContent = e.title;
+  let html = e.body;
+  if (e.hist) {
+    html += '<br><br><div style="font-size:10px;color:var(--muted);margin-top:2px"><b style="color:var(--muted);font-size:10px">📜 Histoire</b><br>' + e.hist + '</div>';
+  }
+  document.getElementById('explBody').innerHTML = html;
+}
+
+document.getElementById('speedSlider').addEventListener('input', function() {
+  document.getElementById('speedLabel').textContent = '×' + this.value;
+});
+
+let notifT;
+function showNotif(txt, type) {
+  const el=document.getElementById('notif');
+  el.textContent=txt; el.className='notif show '+(type||'');
+  clearTimeout(notifT); notifT=setTimeout(()=>el.className='notif',2500);
+}
+
+// ══════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════
+window.addEventListener('load', () => {
+  initGrid();
+  updateExpl('idle');
+  requestAnimationFrame(draw);
+});
+window.addEventListener('resize', initGrid);
+</script>
+</body>
+</html>
