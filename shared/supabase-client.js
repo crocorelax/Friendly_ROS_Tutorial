@@ -6,7 +6,7 @@
 // ════════════════════════════════════════════════════════════
 
 const SUPABASE_URL      = 'https://azzzgmuxkxhixnrhzxnp.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_G2vGBu2IjcjNk8RmnI1_NQ_sCNuuBeu';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6enpnbXV4a3hoaXhucmh6eG5wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwMzg3MzcsImV4cCI6MjA5NTYxNDczN30.TT19K7g4dUVha3iiuKQIBiggsmKHoOew7oySCIdGKpg';
 
 // Le CDN UMD expose window.supabase = { createClient, ... }
 // On remplace par l'instance client — tous les scripts utilisent window.supabase
