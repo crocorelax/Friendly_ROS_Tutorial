@@ -38,9 +38,7 @@ function getFrontRayDist() {
   return castRay(bot.a - 90).dist;
 }
 
-function drawLidar() {
-  const scan = getLidarScan();
-
+function drawLidar(scan) {
   // Révèle les cellules scannées dans le brouillard
   scan.forEach(ray => {
     const steps = Math.floor(ray.dist / CELL);
@@ -53,20 +51,34 @@ function drawLidar() {
     }
   });
 
-  // Dessine les rayons sur le canvas principal
+  // Dessine les rayons en 2 batchs (sans impact / avec impact)
   gCtx.save();
+  gCtx.lineWidth = .7;
+
+  gCtx.strokeStyle = 'rgba(0,214,143,.1)';
+  gCtx.beginPath();
   scan.forEach(ray => {
+    if (ray.hit) return;
     const rad = ray.angle * Math.PI / 180;
-    gCtx.strokeStyle = ray.hit ? 'rgba(0,214,143,.25)' : 'rgba(0,214,143,.1)';
-    gCtx.lineWidth = .7;
-    gCtx.beginPath();
     gCtx.moveTo(bot.x, bot.y);
     gCtx.lineTo(bot.x + Math.cos(rad)*ray.dist, bot.y + Math.sin(rad)*ray.dist);
-    gCtx.stroke();
-    if (ray.hit) {
-      gCtx.fillStyle = 'rgba(0,214,143,.9)';
-      gCtx.beginPath(); gCtx.arc(ray.x, ray.y, 2.5, 0, Math.PI*2); gCtx.fill();
-    }
+  });
+  gCtx.stroke();
+
+  gCtx.strokeStyle = 'rgba(0,214,143,.25)';
+  gCtx.beginPath();
+  scan.forEach(ray => {
+    if (!ray.hit) return;
+    const rad = ray.angle * Math.PI / 180;
+    gCtx.moveTo(bot.x, bot.y);
+    gCtx.lineTo(bot.x + Math.cos(rad)*ray.dist, bot.y + Math.sin(rad)*ray.dist);
+  });
+  gCtx.stroke();
+
+  gCtx.fillStyle = 'rgba(0,214,143,.9)';
+  scan.forEach(ray => {
+    if (!ray.hit) return;
+    gCtx.beginPath(); gCtx.arc(ray.x, ray.y, 2.5, 0, Math.PI*2); gCtx.fill();
   });
   gCtx.restore();
 }
@@ -98,37 +110,42 @@ function drawFog() {
   fogCtx.globalCompositeOperation = 'source-over';
 }
 
-function drawLidarMap() {
+function drawLidarMap(scan) {
   if (!lidarCtx) return;
   const M = 120, scale = M / (gGridW*CELL);
   lidarCtx.clearRect(0,0,M,M);
   lidarCtx.fillStyle = 'rgba(0,0,0,.85)'; lidarCtx.fillRect(0,0,M,M);
 
-  // Murs sur la mini-carte
+  // Murs sur la mini-carte — un seul fill pour tous
+  lidarCtx.fillStyle = 'rgba(59,130,246,.6)';
+  lidarCtx.beginPath();
   mapData.walls.forEach(key => {
     const [c,r] = key.split(',').map(Number);
-    lidarCtx.fillStyle = 'rgba(59,130,246,.6)';
-    lidarCtx.fillRect(c*CELL*scale, r*CELL*scale, CELL*scale, CELL*scale);
+    lidarCtx.rect(c*CELL*scale, r*CELL*scale, CELL*scale, CELL*scale);
   });
+  lidarCtx.fill();
 
-  // Rayons LiDAR
-  const scan = getLidarScan();
+  // Rayons LiDAR — un seul stroke pour tous
+  const bx = bot.x*scale, by = bot.y*scale;
   lidarCtx.strokeStyle = 'rgba(0,214,143,.5)'; lidarCtx.lineWidth = .5;
+  lidarCtx.beginPath();
   scan.forEach(ray => {
     const rad = ray.angle * Math.PI / 180;
-    const bx = bot.x*scale, by = bot.y*scale;
-    lidarCtx.beginPath(); lidarCtx.moveTo(bx, by);
+    lidarCtx.moveTo(bx, by);
     lidarCtx.lineTo(bx + Math.cos(rad)*ray.dist*scale, by + Math.sin(rad)*ray.dist*scale);
-    lidarCtx.stroke();
-    if (ray.hit) {
-      lidarCtx.fillStyle = 'rgba(0,214,143,.9)';
-      lidarCtx.beginPath(); lidarCtx.arc(ray.x*scale, ray.y*scale, 1.5, 0, Math.PI*2); lidarCtx.fill();
-    }
+  });
+  lidarCtx.stroke();
+
+  // Points d'impact
+  lidarCtx.fillStyle = 'rgba(0,214,143,.9)';
+  scan.forEach(ray => {
+    if (!ray.hit) return;
+    lidarCtx.beginPath(); lidarCtx.arc(ray.x*scale, ray.y*scale, 1.5, 0, Math.PI*2); lidarCtx.fill();
   });
 
   // Robot
   lidarCtx.fillStyle = '#3b82f6';
-  lidarCtx.beginPath(); lidarCtx.arc(bot.x*scale, bot.y*scale, 4, 0, Math.PI*2); lidarCtx.fill();
+  lidarCtx.beginPath(); lidarCtx.arc(bx, by, 4, 0, Math.PI*2); lidarCtx.fill();
 
   // Bordure
   lidarCtx.strokeStyle = 'rgba(0,214,143,.4)'; lidarCtx.lineWidth = 1;

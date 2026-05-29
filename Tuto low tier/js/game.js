@@ -65,6 +65,7 @@ function initGame(level) {
   if (level >= 2) initFog();
   updateHUD();
   updateLivesHud();
+  rebuildStaticLayer();
   drawGame();
   setTimeout(() => showTutorial(level), 300);
 }
@@ -126,43 +127,71 @@ function setChip(txt, cls) {
   c.className   = 'chip' + (cls ? ' '+cls : '');
 }
 
+// ── Cache calque statique (fond + grille + murs + spawn) ──
+
+function rebuildStaticLayer() {
+  if (!staticCanvas) {
+    staticCanvas = document.createElement('canvas');
+    staticCtx = staticCanvas.getContext('2d');
+  }
+  staticCanvas.width  = gCanvas.width;
+  staticCanvas.height = gCanvas.height;
+  const W = staticCanvas.width, H = staticCanvas.height;
+  const ctx = staticCtx;
+
+  ctx.fillStyle = '#080a10';
+  ctx.fillRect(0, 0, W, H);
+
+  // Grille — un seul stroke pour tout
+  ctx.strokeStyle = 'rgba(255,255,255,.03)'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let c=0; c<=gGridW; c++) { ctx.moveTo(c*CELL,0); ctx.lineTo(c*CELL,H); }
+  for (let r=0; r<=gGridH; r++) { ctx.moveTo(0,r*CELL); ctx.lineTo(W,r*CELL); }
+  ctx.stroke();
+
+  // Murs — hachures regroupées en un seul stroke par mur
+  mapData.walls.forEach(key => {
+    const [c,r] = key.split(',').map(Number);
+    if (c>=gGridW||r>=gGridH) return;
+    ctx.fillStyle = 'rgba(30,58,138,.3)';
+    ctx.beginPath(); ctx.roundRect(c*CELL+1,r*CELL+1,CELL-2,CELL-2,3); ctx.fill();
+    ctx.save();
+    ctx.beginPath(); ctx.roundRect(c*CELL+1,r*CELL+1,CELL-2,CELL-2,3); ctx.clip();
+    ctx.strokeStyle = 'rgba(59,130,246,.12)'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i=-CELL; i<CELL*2; i+=8) { ctx.moveTo(c*CELL+i,r*CELL); ctx.lineTo(c*CELL+i+CELL,r*CELL+CELL); }
+    ctx.stroke();
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(59,130,246,.6)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.roundRect(c*CELL+1,r*CELL+1,CELL-2,CELL-2,3); ctx.stroke();
+  });
+
+  // Zone spawn
+  ctx.strokeStyle = 'rgba(0,214,143,.2)'; ctx.lineWidth = 1; ctx.setLineDash([4,4]);
+  ctx.strokeRect((mapData.spawn.col+.05)*CELL,(mapData.spawn.row+.05)*CELL,CELL*.9,CELL*.9);
+  ctx.setLineDash([]);
+}
+
 // ── Dessin ─────────────────────────────────
 
 function drawGame() {
   if (!gCtx) return;
   const W=gCanvas.width, H=gCanvas.height;
   gCtx.clearRect(0,0,W,H);
-  gCtx.fillStyle='#080a10'; gCtx.fillRect(0,0,W,H);
 
-  // Grille
-  gCtx.strokeStyle='rgba(255,255,255,.03)'; gCtx.lineWidth=1;
-  for(let c=0;c<=gGridW;c++){gCtx.beginPath();gCtx.moveTo(c*CELL,0);gCtx.lineTo(c*CELL,H);gCtx.stroke();}
-  for(let r=0;r<=gGridH;r++){gCtx.beginPath();gCtx.moveTo(0,r*CELL);gCtx.lineTo(W,r*CELL);gCtx.stroke();}
+  // Calque statique depuis le cache
+  if (staticCanvas) gCtx.drawImage(staticCanvas, 0, 0);
 
-  // Tracé stylo
+  // Tracé stylo (limité aux 800 derniers points pour les longs programmes)
   if (bot.trail.length > 1) {
     gCtx.save();
     gCtx.strokeStyle='rgba(0,214,143,.55)'; gCtx.lineWidth=2.5;
     gCtx.lineCap='round'; gCtx.lineJoin='round';
+    const trail = bot.trail.length > 800 ? bot.trail.slice(-800) : bot.trail;
     gCtx.beginPath();
-    bot.trail.forEach((p,i) => i===0 ? gCtx.moveTo(p.x,p.y) : gCtx.lineTo(p.x,p.y));
+    trail.forEach((p,i) => i===0 ? gCtx.moveTo(p.x,p.y) : gCtx.lineTo(p.x,p.y));
     gCtx.stroke(); gCtx.restore();
   }
-
-  // Murs
-  mapData.walls.forEach(key => {
-    const [c,r] = key.split(',').map(Number);
-    if (c>=gGridW||r>=gGridH) return;
-    gCtx.fillStyle='rgba(30,58,138,.3)';
-    gCtx.beginPath(); gCtx.roundRect(c*CELL+1,r*CELL+1,CELL-2,CELL-2,3); gCtx.fill();
-    gCtx.save();
-    gCtx.beginPath(); gCtx.roundRect(c*CELL+1,r*CELL+1,CELL-2,CELL-2,3); gCtx.clip();
-    gCtx.strokeStyle='rgba(59,130,246,.12)'; gCtx.lineWidth=1;
-    for(let i=-CELL;i<CELL*2;i+=8){gCtx.beginPath();gCtx.moveTo(c*CELL+i,r*CELL);gCtx.lineTo(c*CELL+i+CELL,r*CELL+CELL);gCtx.stroke();}
-    gCtx.restore();
-    gCtx.strokeStyle='rgba(59,130,246,.6)'; gCtx.lineWidth=1.5;
-    gCtx.beginPath(); gCtx.roundRect(c*CELL+1,r*CELL+1,CELL-2,CELL-2,3); gCtx.stroke();
-  });
 
   // Objectifs
   mapData.goals.forEach(g => {
@@ -185,14 +214,11 @@ function drawGame() {
     }
   });
 
-  // Zone spawn
-  gCtx.strokeStyle='rgba(0,214,143,.2)'; gCtx.lineWidth=1; gCtx.setLineDash([4,4]);
-  gCtx.strokeRect((mapData.spawn.col+.05)*CELL,(mapData.spawn.row+.05)*CELL,CELL*.9,CELL*.9);
-  gCtx.setLineDash([]);
-
-  if (currentLevel >= 2) drawLidar();
+  // LiDAR : scan calculé une seule fois, partagé entre drawLidar et drawLidarMap
+  const scan = currentLevel >= 2 ? getLidarScan() : null;
+  if (scan) drawLidar(scan);
   drawRobot(bot.x, bot.y, bot.a);
-  if (currentLevel >= 2) { drawFog(); drawLidarMap(); }
+  if (scan) { drawFog(); drawLidarMap(scan); }
 }
 
 function drawRobot(x, y, a) {

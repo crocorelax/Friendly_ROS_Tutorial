@@ -112,9 +112,8 @@ function addBlock(type, val, insertBefore) {
   inner += `<button class="del" onclick="this.parentNode.remove();checkEmpty()">✕</button>`;
   div.innerHTML = inner;
 
-  div.addEventListener('dragstart',  scriptDragStart);
-  div.addEventListener('dragend',    scriptDragEnd);
-  div.addEventListener('dragover',   scriptBlockDragOver);
+  div.addEventListener('dragstart', scriptDragStart);
+  div.addEventListener('dragend',   scriptDragEnd);
 
   const body = document.getElementById('scriptBody');
   if (insertBefore) body.insertBefore(div, insertBefore);
@@ -158,19 +157,12 @@ function scriptDragStart(e) {
 
 function scriptDragEnd() {
   if (dragSrc) dragSrc.classList.remove('dragging');
-  document.querySelectorAll('.sblock').forEach(b => b.classList.remove('drop-above','drop-below'));
+  if (currentDropTarget) {
+    currentDropTarget.classList.remove('drop-above','drop-below');
+    currentDropTarget = null;
+  }
   dragSrc = null;
   if (dragMode === 'reorder') dragMode = null;
-}
-
-function scriptBlockDragOver(e) {
-  if (dragMode !== 'reorder' || !dragSrc) return;
-  e.preventDefault(); e.stopPropagation();
-  const target = e.currentTarget;
-  if (target === dragSrc) return;
-  document.querySelectorAll('.sblock').forEach(b => b.classList.remove('drop-above','drop-below'));
-  const rect = target.getBoundingClientRect();
-  target.classList.add(e.clientY < rect.top + rect.height/2 ? 'drop-above' : 'drop-below');
 }
 
 // ── Zone programme : dragover / drop ──────
@@ -179,7 +171,21 @@ const scriptBody = document.getElementById('scriptBody');
 
 scriptBody.addEventListener('dragover', e => {
   e.preventDefault();
-  if (dragMode === 'palette') scriptBody.classList.add('over');
+  if (dragMode === 'palette') { scriptBody.classList.add('over'); return; }
+  if (dragMode !== 'reorder' || !dragSrc) return;
+  const target = e.target.closest('.sblock');
+  if (!target || target === dragSrc) return;
+  if (currentDropTarget !== target) {
+    if (currentDropTarget) currentDropTarget.classList.remove('drop-above','drop-below');
+    currentDropTarget = target;
+  }
+  const rect = target.getBoundingClientRect();
+  const cls = e.clientY < rect.top + rect.height/2 ? 'drop-above' : 'drop-below';
+  const other = cls === 'drop-above' ? 'drop-below' : 'drop-above';
+  if (!target.classList.contains(cls)) {
+    target.classList.remove(other);
+    target.classList.add(cls);
+  }
 });
 
 scriptBody.addEventListener('dragleave', e => {
@@ -189,7 +195,10 @@ scriptBody.addEventListener('dragleave', e => {
 scriptBody.addEventListener('drop', e => {
   e.preventDefault();
   scriptBody.classList.remove('over');
-  document.querySelectorAll('.sblock').forEach(b => b.classList.remove('drop-above','drop-below'));
+  if (currentDropTarget) {
+    currentDropTarget.classList.remove('drop-above','drop-below');
+    currentDropTarget = null;
+  }
 
   if (dragMode === 'palette' && dragType) {
     addBlock(dragType, dragVal, getInsertPosition(e.clientY));

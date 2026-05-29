@@ -133,12 +133,14 @@ function drawEditor() {
   edCtx.clearRect(0,0,W,H);
   edCtx.fillStyle = '#080a10'; edCtx.fillRect(0,0,W,H);
 
-  // Grille
+  // Grille — un seul stroke pour tout
   edCtx.strokeStyle = 'rgba(255,255,255,.05)'; edCtx.lineWidth = 1;
-  for (let c=0;c<=edGridW;c++){edCtx.beginPath();edCtx.moveTo(c*CELL,0);edCtx.lineTo(c*CELL,H);edCtx.stroke();}
-  for (let r=0;r<=edGridH;r++){edCtx.beginPath();edCtx.moveTo(0,r*CELL);edCtx.lineTo(W,r*CELL);edCtx.stroke();}
+  edCtx.beginPath();
+  for (let c=0;c<=edGridW;c++){edCtx.moveTo(c*CELL,0);edCtx.lineTo(c*CELL,H);}
+  for (let r=0;r<=edGridH;r++){edCtx.moveTo(0,r*CELL);edCtx.lineTo(W,r*CELL);}
+  edCtx.stroke();
 
-  // Murs
+  // Murs — hachures regroupées en un seul stroke par mur
   mapData.walls.forEach(key => {
     const [c,r] = key.split(',').map(Number);
     edCtx.fillStyle = 'rgba(30,58,138,.5)';
@@ -148,9 +150,9 @@ function drawEditor() {
     edCtx.save();
     edCtx.beginPath(); edCtx.rect(c*CELL+1,r*CELL+1,CELL-2,CELL-2); edCtx.clip();
     edCtx.strokeStyle = 'rgba(59,130,246,.15)'; edCtx.lineWidth = 1;
-    for(let i=-CELL;i<CELL*2;i+=8){
-      edCtx.beginPath(); edCtx.moveTo(c*CELL+i,r*CELL); edCtx.lineTo(c*CELL+i+CELL,r*CELL+CELL); edCtx.stroke();
-    }
+    edCtx.beginPath();
+    for (let i=-CELL;i<CELL*2;i+=8) { edCtx.moveTo(c*CELL+i,r*CELL); edCtx.lineTo(c*CELL+i+CELL,r*CELL+CELL); }
+    edCtx.stroke();
     edCtx.restore();
   });
 

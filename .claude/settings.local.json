@@ -15,7 +15,12 @@
       "PowerShell(New-Item -ItemType Directory -Force -Path \"C:\\\\Users\\\\lacos\\\\Documents\\\\GitHub\\\\Friendly_ROS_Tutorial\\\\Robot Dashboard\\\\js\")",
       "Bash(python3 -c ' *)",
       "Bash(mkdir -p \"C:\\\\Users\\\\lacostea\\\\OneDrive - GROUPE 3IL\\\\Documents\\\\GitHub\\\\Friendly_ROS_Tutorial\\\\.claude\")",
-      "mcp__Claude_Preview__preview_start"
+      "mcp__Claude_Preview__preview_start",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\lacos\\\\Documents\\\\GitHub\\\\Friendly_ROS_Tutorial\" -Recurse -File)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(xargs wc -l)",
+      "Bash(dir \"C:\\\\Users\\\\lacos\\\\Documents\\\\GitHub\\\\Friendly_ROS_Tutorial\" /s /b)",
+      "Bash(grep -E \"js$|html$|json$\")"
     ]
   }
 }

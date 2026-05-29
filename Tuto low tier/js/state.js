@@ -34,6 +34,10 @@ let dragType = null;
 let dragVal  = null;
 let dragMode = null;  // 'palette' | 'reorder'
 let dragSrc  = null;
+let currentDropTarget = null;
+
+// ── Cache canvas statique (grille + murs + spawn) ──
+let staticCanvas = null, staticCtx = null;
 
 // ── Utilitaire ──
 const sleep = ms => new Promise(r => setTimeout(r, ms));
