@@ -70,10 +70,12 @@ function _aeRender() {
   // Fond
   c.fillStyle = '#080a10'; c.fillRect(0, 0, W, H);
 
-  // Grille 10×10
+  // Grille 10×10 — un seul stroke
   c.strokeStyle = 'rgba(255,255,255,.04)'; c.lineWidth = 1;
-  for (let x = 0; x <= ARENA_W; x += 10) { c.beginPath(); c.moveTo(x*s, 0); c.lineTo(x*s, H); c.stroke(); }
-  for (let y = 0; y <= ARENA_H; y += 10) { c.beginPath(); c.moveTo(0, y*s); c.lineTo(W, y*s); c.stroke(); }
+  c.beginPath();
+  for (let x = 0; x <= ARENA_W; x += 10) { c.moveTo(x*s, 0); c.lineTo(x*s, H); }
+  for (let y = 0; y <= ARENA_H; y += 10) { c.moveTo(0, y*s); c.lineTo(W, y*s); }
+  c.stroke();
 
   // Bordure arène
   c.strokeStyle = 'rgba(56,189,248,.4)'; c.lineWidth = 2;
@@ -270,6 +272,7 @@ function aeApply() {
   }
   MISSION_TASKS.forEach(t => t.done = false);
   termLog(`[arena] Arène appliquée : ${WALLS.length} murs, ${GOALS.length} objectifs`, 'info');
+  rebuildArenaStatic();
   closeArenaEditor();
 }
 

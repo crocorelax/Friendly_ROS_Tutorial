@@ -20,7 +20,9 @@
       "Bash(Select-Object -ExpandProperty FullName)",
       "Bash(xargs wc -l)",
       "Bash(dir \"C:\\\\Users\\\\lacos\\\\Documents\\\\GitHub\\\\Friendly_ROS_Tutorial\" /s /b)",
-      "Bash(grep -E \"js$|html$|json$\")"
+      "Bash(grep -E \"js$|html$|json$\")",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\lacos\\\\Documents\\\\GitHub\\\\Friendly_ROS_Tutorial\" -Recurse -Include \"*.html\", \"*.js\")",
+      "Bash(xargs grep -l \"nav\")"
     ]
   }
 }

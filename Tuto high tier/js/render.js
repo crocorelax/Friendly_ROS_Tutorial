@@ -2,6 +2,7 @@
 let rvizCanvas, rvizCtx, rvizW, rvizH;
 let arenaCanvas, arenaCtx, arenaW, arenaH;
 let arenaScale;
+let arenaStaticCanvas = null, arenaStaticCtx = null;
 
 const LIDAR_RAYS = 90;
 
@@ -26,26 +27,45 @@ function initCanvases() {
   arenaCanvas.width = arenaW;
   arenaCanvas.height = arenaH;
   arenaScale = Math.min(arenaW / ARENA_W, arenaH / ARENA_H) * .9;
+  rebuildArenaStatic();
 }
 
 // ══ LIDAR RAY CAST ══
+// Intersection analytique (méthode des slabs) : O(N) par rayon au lieu de O(maxD×N)
 
 function castRay(angle, noise) {
   const rad = (S.a + angle) * Math.PI / 180;
   const dx = Math.cos(rad), dy = Math.sin(rad);
-  let d = 0;
   const maxD = 150;
-  while (d < maxD) {
-    d += 1;
-    const nx = S.x + dx * d, ny = S.y + dy * d;
-    if (nx < 0 || ny < 0 || nx > ARENA_W || ny > ARENA_H)
-      return d + (Math.random() - .5) * noise * d;
-    for (const w of WALLS) {
-      if (nx > w.x && nx < w.x + w.w && ny > w.y && ny < w.y + w.h)
-        return d + (Math.random() - .5) * noise * d;
-    }
+  let minD = maxD;
+
+  // Sortie de l'arène : distance jusqu'au bord le plus proche dans le sens du rayon
+  if (Math.abs(dx) > 1e-9) {
+    const t = dx > 0 ? (ARENA_W - S.x) / dx : -S.x / dx;
+    if (t > 0) minD = Math.min(minD, t);
   }
-  return maxD;
+  if (Math.abs(dy) > 1e-9) {
+    const t = dy > 0 ? (ARENA_H - S.y) / dy : -S.y / dy;
+    if (t > 0) minD = Math.min(minD, t);
+  }
+
+  // Intersection avec chaque mur (slab AABB — calcul exact)
+  for (const w of WALLS) {
+    let tLo = 0, tHi = minD;
+    if (Math.abs(dx) > 1e-9) {
+      const t1 = (w.x - S.x) / dx, t2 = (w.x + w.w - S.x) / dx;
+      tLo = Math.max(tLo, Math.min(t1, t2));
+      tHi = Math.min(tHi, Math.max(t1, t2));
+    } else if (S.x <= w.x || S.x >= w.x + w.w) { continue; }
+    if (Math.abs(dy) > 1e-9) {
+      const t1 = (w.y - S.y) / dy, t2 = (w.y + w.h - S.y) / dy;
+      tLo = Math.max(tLo, Math.min(t1, t2));
+      tHi = Math.min(tHi, Math.max(t1, t2));
+    } else if (S.y <= w.y || S.y >= w.y + w.h) { continue; }
+    if (tLo <= tHi && tLo >= 0) minD = Math.min(minD, tLo);
+  }
+
+  return minD + (noise ? (Math.random() - .5) * noise * minD : 0);
 }
 
 // ══ RVIZ DRAW ══
@@ -58,16 +78,17 @@ function drawRviz() {
   const cx = W / 2, cy = H / 2;
   const scale = Math.min(W, H) / ARENA_W * 0.8;
 
-  // Grid
+  // Grid — un seul stroke pour tout
   c.strokeStyle = 'rgba(30,37,53,.8)'; c.lineWidth = 1;
   const gs = 10 * scale;
-  for (let x = cx % gs; x < W; x += gs) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, H); c.stroke(); }
-  for (let y = cy % gs; y < H; y += gs) { c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); }
+  c.beginPath();
+  for (let x = cx % gs; x < W; x += gs) { c.moveTo(x, 0); c.lineTo(x, H); }
+  for (let y = cy % gs; y < H; y += gs) { c.moveTo(0, y); c.lineTo(W, y); }
+  c.stroke();
 
   // Origin cross
   c.strokeStyle = 'rgba(56,189,248,.3)'; c.lineWidth = 1;
-  c.beginPath(); c.moveTo(0, cy); c.lineTo(W, cy); c.stroke();
-  c.beginPath(); c.moveTo(cx, 0); c.lineTo(cx, H); c.stroke();
+  c.beginPath(); c.moveTo(0, cy); c.lineTo(W, cy); c.moveTo(cx, 0); c.lineTo(cx, H); c.stroke();
 
   const toS = (x, y) => ({ sx: cx + (x - S.x) * scale, sy: cy + (y - S.y) * scale });
 
@@ -94,15 +115,21 @@ function drawRviz() {
       const rad = (S.a + angle) * Math.PI / 180;
       scan.push({ d, rx: Math.cos(rad) * d, ry: Math.sin(rad) * d });
     }
+    // Rayons — un seul stroke pour les 90
     c.strokeStyle = 'rgba(0,214,143,.12)'; c.lineWidth = .5;
-    scan.forEach(r => { c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + r.rx * scale, cy + r.ry * scale); c.stroke(); });
+    c.beginPath();
+    scan.forEach(r => { c.moveTo(cx, cy); c.lineTo(cx + r.rx * scale, cy + r.ry * scale); });
+    c.stroke();
+    // Points d'impact — un seul fill pour tous
+    c.fillStyle = 'rgba(0,214,143,.7)';
+    c.beginPath();
     scan.forEach(r => {
       if (r.d < 140) {
-        c.fillStyle = `rgba(0,214,143,${.5 + Math.random() * .4})`;
         const noise = (Math.random() - .5) * S.lidarNoise * 15;
-        c.beginPath(); c.arc(cx + r.rx * scale + noise, cy + r.ry * scale + noise, 1.8, 0, Math.PI * 2); c.fill();
+        c.arc(cx + r.rx * scale + noise, cy + r.ry * scale + noise, 1.8, 0, Math.PI * 2);
       }
     });
+    c.fill();
     S.lidarHistory.push(Date.now());
   }
 
@@ -180,37 +207,44 @@ function drawRviz() {
   c.restore();
 }
 
-// ══ ARENA DRAW ══
+// ══ CACHE ARÈNE STATIQUE (fond + texture + murs) ══
 
-function drawArena() {
-  const c = arenaCtx, W = arenaW, H = arenaH;
+function rebuildArenaStatic() {
+  if (!arenaCanvas) return;
+  if (!arenaStaticCanvas) {
+    arenaStaticCanvas = document.createElement('canvas');
+    arenaStaticCtx = arenaStaticCanvas.getContext('2d');
+  }
+  arenaStaticCanvas.width = arenaW;
+  arenaStaticCanvas.height = arenaH;
+  const c = arenaStaticCtx;
   const s = arenaScale;
-  const ox = (W - ARENA_W * s) / 2, oy = (H - ARENA_H * s) / 2;
+  const ox = (arenaW - ARENA_W * s) / 2, oy = (arenaH - ARENA_H * s) / 2;
 
-  c.clearRect(0, 0, W, H);
-
-  // Background — terrain sableux
-  c.fillStyle = '#1a1208'; c.fillRect(0, 0, W, H);
+  // Fond sableux
+  c.fillStyle = '#1a1208'; c.fillRect(0, 0, arenaW, arenaH);
   c.fillStyle = '#2d2010'; c.fillRect(ox, oy, ARENA_W * s, ARENA_H * s);
 
-  // Texture grid
+  // Texture grille — un seul stroke
   c.strokeStyle = 'rgba(80,60,20,.3)'; c.lineWidth = .5;
-  for (let x = 0; x < ARENA_W; x += 20) { c.beginPath(); c.moveTo(ox + x * s, oy); c.lineTo(ox + x * s, oy + ARENA_H * s); c.stroke(); }
-  for (let y = 0; y < ARENA_H; y += 20) { c.beginPath(); c.moveTo(ox, oy + y * s); c.lineTo(ox + ARENA_W * s, oy + y * s); c.stroke(); }
+  c.beginPath();
+  for (let x = 0; x < ARENA_W; x += 20) { c.moveTo(ox + x * s, oy); c.lineTo(ox + x * s, oy + ARENA_H * s); }
+  for (let y = 0; y < ARENA_H; y += 20) { c.moveTo(ox, oy + y * s); c.lineTo(ox + ARENA_W * s, oy + y * s); }
+  c.stroke();
 
-  // Team zones
+  // Zones équipes
   c.fillStyle = 'rgba(59,130,246,.08)'; c.fillRect(ox, oy, 60 * s, ARENA_H * s);
   c.fillStyle = 'rgba(239,68,68,.08)';  c.fillRect(ox + (ARENA_W - 60) * s, oy, 60 * s, ARENA_H * s);
   c.font = `bold ${10 * s}px JetBrains Mono`; c.textAlign = 'center'; c.textBaseline = 'middle';
   c.fillStyle = 'rgba(59,130,246,.3)';  c.fillText('BLEU',  ox + 30 * s,             oy + ARENA_H * s / 2);
   c.fillStyle = 'rgba(239,68,68,.3)';   c.fillText('ROUGE', ox + (ARENA_W - 30) * s, oy + ARENA_H * s / 2);
 
-  // Center line
+  // Ligne centrale
   c.strokeStyle = 'rgba(255,255,255,.1)'; c.lineWidth = 1; c.setLineDash([6, 4]);
   c.beginPath(); c.moveTo(ox + ARENA_W * s / 2, oy); c.lineTo(ox + ARENA_W * s / 2, oy + ARENA_H * s); c.stroke();
   c.setLineDash([]);
 
-  // Walls / bacs
+  // Murs
   WALLS.forEach(w => {
     c.fillStyle = 'rgba(60,40,10,.8)'; c.strokeStyle = 'rgba(120,80,30,.8)'; c.lineWidth = 1;
     c.fillRect(ox + w.x * s, oy + w.y * s, w.w * s, w.h * s);
@@ -221,6 +255,23 @@ function drawArena() {
       c.fillText(w.label, ox + (w.x + w.w / 2) * s, oy + (w.y + w.h / 2) * s);
     }
   });
+
+  // Bordure
+  c.strokeStyle = 'rgba(255,255,255,.3)'; c.lineWidth = 2;
+  c.strokeRect(ox, oy, ARENA_W * s, ARENA_H * s);
+}
+
+// ══ ARENA DRAW ══
+
+function drawArena() {
+  const c = arenaCtx, W = arenaW, H = arenaH;
+  const s = arenaScale;
+  const ox = (W - ARENA_W * s) / 2, oy = (H - ARENA_H * s) / 2;
+
+  c.clearRect(0, 0, W, H);
+
+  // Calque statique depuis le cache (fond + texture + murs)
+  if (arenaStaticCanvas) c.drawImage(arenaStaticCanvas, 0, 0);
 
   // Goals
   GOALS.forEach(g => {
@@ -256,10 +307,6 @@ function drawArena() {
   c.fillStyle = 'rgba(0,214,143,.9)';
   c.beginPath(); c.arc(rb * .2, 0, rb * .35, 0, Math.PI * 2); c.fill();
   c.restore();
-
-  // Border
-  c.strokeStyle = 'rgba(255,255,255,.3)'; c.lineWidth = 2;
-  c.strokeRect(ox, oy, ARENA_W * s, ARENA_H * s);
 
   // Timer overlay
   if (S.matchRunning) {
