@@ -24,7 +24,10 @@
     </div>
     <div class="form-group">
       <label>Mot de passe</label>
-      <input id="loginPass" type="password" autocomplete="current-password">
+      <div class="pw-wrap">
+        <input id="loginPass" type="password" autocomplete="current-password">
+        <button type="button" class="pw-eye" onclick="togglePw('loginPass',this)" tabindex="-1" aria-label="Afficher le mot de passe">👁</button>
+      </div>
     </div>
     <div class="auth-error" id="loginError"></div>
     <button class="btn-primary" onclick="handleLogin()">Se connecter</button>
@@ -40,11 +43,17 @@
     </div>
     <div class="form-group">
       <label>Mot de passe</label>
-      <input id="regPass" type="password" autocomplete="new-password">
+      <div class="pw-wrap">
+        <input id="regPass" type="password" autocomplete="new-password">
+        <button type="button" class="pw-eye" onclick="togglePw('regPass',this)" tabindex="-1" aria-label="Afficher le mot de passe">👁</button>
+      </div>
     </div>
     <div class="form-group">
       <label>Confirmer</label>
-      <input id="regPass2" type="password" autocomplete="new-password">
+      <div class="pw-wrap">
+        <input id="regPass2" type="password" autocomplete="new-password">
+        <button type="button" class="pw-eye" onclick="togglePw('regPass2',this)" tabindex="-1" aria-label="Afficher le mot de passe">👁</button>
+      </div>
     </div>
     <div class="auth-error" id="regError"></div>
     <button class="btn-primary" onclick="handleRegister()">Créer le compte</button>

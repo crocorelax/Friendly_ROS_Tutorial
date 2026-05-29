@@ -5,6 +5,14 @@
 
 let _currentTab = 'low';
 
+// ── Toggle visibilité mot de passe ───────────────────────
+function togglePw(inputId, btn) {
+  const el = document.getElementById(inputId);
+  const show = el.type === 'password';
+  el.type = show ? 'text' : 'password';
+  btn.classList.toggle('visible', show);
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   // Restaure la session Supabase et peuple le cache Auth._profile
   try { await Auth.init(); } catch (e) { console.error('[auth] Init error', e); }

@@ -125,6 +125,26 @@ function updateMenuCards() {
       card.onclick = () => _showMenuNotif(`🔒 Termine le niveau ${n - 1} pour débloquer`);
     }
   });
+
+  // Carte éditeur — admin : créer / joueur : choisir
+  const editorCard = document.getElementById('editorMenuCard');
+  if (editorCard) {
+    if (Auth.isAdmin()) {
+      document.getElementById('editorCardNum').textContent   = 'ÉDITEUR';
+      document.getElementById('editorCardTitle').textContent = 'Créer une carte';
+      document.getElementById('editorCardDesc').textContent  = 'Dessine tes murs, place les objectifs et sauvegarde ta carte.';
+      document.getElementById('editorCardBadge').textContent = 'Créateur';
+      document.getElementById('editorCardBadge').className   = 'mc-badge badge-blue';
+      editorCard.onclick = () => startEditor();
+    } else {
+      document.getElementById('editorCardNum').textContent   = 'CARTES';
+      document.getElementById('editorCardTitle').textContent = 'Choisir une carte';
+      document.getElementById('editorCardDesc').textContent  = 'Sélectionne une carte créée par l\'administrateur pour jouer.';
+      document.getElementById('editorCardBadge').textContent = 'Sélection';
+      document.getElementById('editorCardBadge').className   = 'mc-badge badge-green';
+      editorCard.onclick = () => openLoad('map');
+    }
+  }
 }
 
 function _showMenuNotif(msg) {

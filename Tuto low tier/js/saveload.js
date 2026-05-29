@@ -11,6 +11,10 @@ let _slItems = [];   // cache de la liste courante (evite double-fetch)
 // ── Ouverture ───────────────────────────────
 
 function openSave(type) {
+  if (type === 'map' && !Auth.isAdmin()) {
+    _showMenuNotif('🔒 Création de carte réservée à l\'administrateur');
+    return;
+  }
   _slType = type; _slMode = 'save';
   const label = type === 'map' ? 'une carte' : 'un script';
   document.getElementById('slTitle').textContent     = `Sauvegarder ${label}`;
@@ -24,7 +28,10 @@ function openSave(type) {
 
 function openLoad(type) {
   _slType = type; _slMode = 'load';
-  const label = type === 'map' ? 'Mes cartes' : 'Mes scripts';
+  const isAdmin = Auth.isAdmin();
+  const label = type === 'map'
+    ? (isAdmin ? 'Mes cartes' : 'Choisir une carte')
+    : 'Mes scripts';
   document.getElementById('slTitle').textContent      = label;
   document.getElementById('slSaveForm').style.display = 'none';
   document.getElementById('slLoadList').style.display = '';
@@ -69,8 +76,10 @@ async function _renderLoadList() {
   const session = Auth.getSession();
 
   try {
+    // Maps : tous les utilisateurs voient les cartes admin (getAllMaps).
+    // Scripts : admin voit tout, joueur voit les siens.
     _slItems = _slType === 'map'
-      ? await (isAdmin ? Persistence.getAllMaps()         : Persistence.getUserMaps())
+      ? await Persistence.getAllMaps()
       : await (isAdmin ? Persistence.getAllScripts('low') : Persistence.getUserScripts('low'));
   } catch (e) {
     el.innerHTML = '<div class="sl-empty">Erreur réseau — réessaie.</div>';
@@ -91,7 +100,12 @@ async function _renderLoadList() {
     const isEx     = item.is_example || item.isExample;
     const exTag    = isEx   ? '<span class="sl-tag sl-tag-ex">exemple</span>' : '';
     const lvlTag   = item.level ? `<span class="sl-tag">N${item.level}</span>` : '';
-    const delDisabled = isEx && !isAdmin ? 'disabled title="Script exemple non supprimable"' : '';
+    let delDisabled = '';
+    if (_slType === 'map') {
+      if (!isAdmin) delDisabled = 'disabled title="Seul l\'administrateur peut supprimer des cartes"';
+    } else {
+      if (isEx && !isAdmin) delDisabled = 'disabled title="Script exemple non supprimable"';
+    }
     return `
       <div class="sl-item">
         <div class="sl-item-info">

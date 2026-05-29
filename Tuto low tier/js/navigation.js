@@ -10,6 +10,10 @@ function goMenu() {
 }
 
 function startEditor() {
+  if (!Auth.isAdmin()) {
+    _showMenuNotif('🔒 Éditeur réservé à l\'administrateur');
+    return;
+  }
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('editorScreen').classList.add('active');
   initEditor();

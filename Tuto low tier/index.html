@@ -29,12 +29,12 @@
       <p>Club 3iL · Simulateur de navigation autonome</p>
     </div>
     <div class="menu-cards">
-      <div class="menu-card" onclick="startEditor()">
+      <div class="menu-card" id="editorMenuCard" onclick="startEditor()">
         <div class="mc-icon">🗺️</div>
-        <div class="mc-num">ÉDITEUR</div>
-        <h2>Créer une carte</h2>
-        <p>Dessine tes murs, place les objectifs et sauvegarde ta carte.</p>
-        <span class="mc-badge badge-blue">Créateur</span>
+        <div class="mc-num" id="editorCardNum">ÉDITEUR</div>
+        <h2 id="editorCardTitle">Créer une carte</h2>
+        <p id="editorCardDesc">Dessine tes murs, place les objectifs et sauvegarde ta carte.</p>
+        <span class="mc-badge badge-blue" id="editorCardBadge">Créateur</span>
       </div>
       <div class="menu-card" id="menuCard1" onclick="startLevel(1)">
         <div class="mc-icon">🤖</div>
