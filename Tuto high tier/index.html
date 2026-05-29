@@ -238,8 +238,15 @@
         <div id="aeProps" class="ae-props-box">
           <div style="color:var(--muted);font-size:11px">Clique un élément</div>
         </div>
+        <!-- Cartes ville prédéfinies -->
+        <div class="ae-sec-label">Cartes ville</div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:4px">
+          <button class="ae-saved-btn" style="justify-content:flex-start;gap:6px" onclick="_aeLoadPreset('centre_ville')">🏙 Centre-ville</button>
+          <button class="ae-saved-btn" style="justify-content:flex-start;gap:6px" onclick="_aeLoadPreset('industrielle')">🏭 Zone industrielle</button>
+          <button class="ae-saved-btn" style="justify-content:flex-start;gap:6px" onclick="_aeLoadPreset('residentiel')">🏘 Quartier rés.</button>
+        </div>
         <!-- Configs sauvegardées -->
-        <div class="ae-sec-label" style="margin-top:12px">Configurations sauvegardées</div>
+        <div class="ae-sec-label" style="margin-top:8px">Configurations sauvegardées</div>
         <div id="aeSavedList" class="ae-saved-list"></div>
         <!-- Actions -->
         <div style="display:flex;flex-direction:column;gap:6px;margin-top:auto;padding-top:12px;border-top:1px solid var(--border)">

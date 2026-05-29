@@ -325,6 +325,76 @@ function _aeRefreshSavedList() {
     </div>`).join('');
 }
 
+// ── Cartes ville prédéfinies ─────────────────────────────
+const ARENA_PRESETS = {
+  centre_ville: {
+    name: 'Centre-ville',
+    walls: [
+      {x:55,  y:10,  w:70, h:65, label:'Imm. NW'},
+      {x:175, y:10,  w:70, h:65, label:'Imm. NE'},
+      {x:55,  y:125, w:70, h:65, label:'Imm. SW'},
+      {x:175, y:125, w:70, h:65, label:'Imm. SE'},
+    ],
+    goals: [
+      {x:150, y:100, r:14, pts:25, label:'Carrefour',  color:'#f97316', done:false},
+      {x:150, y:42,  r:12, pts:10, label:'Rue Nord',   color:'#22c55e', done:false},
+      {x:150, y:157, r:12, pts:10, label:'Rue Sud',    color:'#22c55e', done:false},
+      {x:272, y:100, r:12, pts:10, label:'Rue Est',    color:'#22c55e', done:false},
+      {x:27,  y:42,  r:10, pts:5,  label:'Départ',     color:'#6366f1', done:false},
+    ],
+    spawn: {x:27, y:100},
+  },
+  industrielle: {
+    name: 'Zone industrielle',
+    walls: [
+      {x:50,  y:10,  w:80, h:60, label:'Hall A'},
+      {x:170, y:10,  w:80, h:60, label:'Hall B'},
+      {x:50,  y:130, w:80, h:60, label:'Hall C'},
+      {x:170, y:130, w:80, h:60, label:'Hall D'},
+      {x:280, y:30,  w:20, h:140, label:'Entrepôt'},
+    ],
+    goals: [
+      {x:25,  y:40,  r:10, pts:5,  label:'Zone A',     color:'#22c55e', done:false},
+      {x:110, y:100, r:10, pts:10, label:'Jonction O',  color:'#22c55e', done:false},
+      {x:150, y:100, r:14, pts:25, label:'Chargement',  color:'#f97316', done:false},
+      {x:253, y:100, r:10, pts:15, label:'Livraison',   color:'#f97316', done:false},
+      {x:25,  y:160, r:10, pts:5,  label:'Zone C',      color:'#22c55e', done:false},
+    ],
+    spawn: {x:25, y:100},
+  },
+  residentiel: {
+    name: 'Quartier résidentiel',
+    walls: [
+      {x:40,  y:15,  w:50, h:50, label:'Maison'},
+      {x:125, y:15,  w:50, h:50, label:'Maison'},
+      {x:210, y:15,  w:50, h:50, label:'Maison'},
+      {x:40,  y:135, w:50, h:50, label:'Maison'},
+      {x:125, y:135, w:50, h:50, label:'Maison'},
+      {x:210, y:135, w:50, h:50, label:'Maison'},
+    ],
+    goals: [
+      {x:65,  y:100, r:10, pts:10, label:'Jardin A',      color:'#22c55e', done:false},
+      {x:150, y:100, r:14, pts:25, label:'Place centrale', color:'#f97316', done:false},
+      {x:235, y:100, r:10, pts:10, label:'Jardin B',       color:'#22c55e', done:false},
+      {x:280, y:100, r:10, pts:10, label:'Parc Est',       color:'#22c55e', done:false},
+      {x:107, y:40,  r:8,  pts:10, label:'Ruelle N',       color:'#22c55e', done:false},
+    ],
+    spawn: {x:20, y:100},
+  },
+};
+
+function _aeLoadPreset(key) {
+  const p = ARENA_PRESETS[key];
+  if (!p) return;
+  _aeWalls = p.walls.map(w => ({...w}));
+  _aeGoals = p.goals.map(g => ({...g, done:false}));
+  _aeSpawn = {...p.spawn};
+  _aeSel   = null;
+  _aeRefreshProps();
+  _aeRender();
+  termLog(`[arena] Carte "${p.name}" chargée dans l'éditeur — cliquez ✅ Appliquer`, 'info');
+}
+
 // ── Reset aux valeurs d'origine ───────────────────────────
 function aeReset() {
   if (!confirm('Remettre les valeurs par défaut ?')) return;

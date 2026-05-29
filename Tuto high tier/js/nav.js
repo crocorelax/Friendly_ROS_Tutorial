@@ -16,18 +16,36 @@ function navStop() {
   S.cmdVel = { linear: 0, angular: 0 };
 }
 
-// Lookahead raycast — renvoie la distance au prochain obstacle (dans le cap actuel)
+// Lookahead raycast — slab AABB (O(N) au lieu de O(lookDist×N))
 function _checkAhead(lookDist) {
   const rad = S.a * Math.PI / 180;
-  for (let d = 6; d <= lookDist; d += 2) {
-    const nx = S.x + Math.cos(rad) * d;
-    const ny = S.y + Math.sin(rad) * d;
-    if (nx < 9 || nx > ARENA_W - 9 || ny < 9 || ny > ARENA_H - 9) return d;
-    for (const w of WALLS) {
-      if (nx > w.x - 9 && nx < w.x + w.w + 9 && ny > w.y - 9 && ny < w.y + w.h + 9) return d;
-    }
+  const dx = Math.cos(rad), dy = Math.sin(rad);
+  const m = 9;
+  let minD = lookDist + 1;
+
+  const hit = t => { if (t >= 0 && t < minD) minD = Math.max(t, 6); };
+
+  // Limites de l'arène (avec marge robot)
+  if (Math.abs(dx) > 1e-9) hit(dx > 0 ? (ARENA_W - m - S.x) / dx : (m - S.x) / dx);
+  if (Math.abs(dy) > 1e-9) hit(dy > 0 ? (ARENA_H - m - S.y) / dy : (m - S.y) / dy);
+
+  // Murs élargis de la marge robot (capsule cast approx.)
+  for (const w of WALLS) {
+    let tLo = 0, tHi = minD;
+    if (Math.abs(dx) > 1e-9) {
+      const t1 = (w.x - m - S.x) / dx, t2 = (w.x + w.w + m - S.x) / dx;
+      tLo = Math.max(tLo, Math.min(t1, t2));
+      tHi = Math.min(tHi, Math.max(t1, t2));
+    } else if (S.x <= w.x - m || S.x >= w.x + w.w + m) { continue; }
+    if (Math.abs(dy) > 1e-9) {
+      const t1 = (w.y - m - S.y) / dy, t2 = (w.y + w.h + m - S.y) / dy;
+      tLo = Math.max(tLo, Math.min(t1, t2));
+      tHi = Math.min(tHi, Math.max(t1, t2));
+    } else if (S.y <= w.y - m || S.y >= w.y + w.h + m) { continue; }
+    if (tLo <= tHi) hit(tLo);
   }
-  return lookDist + 1; // dégagé
+
+  return minD;
 }
 
 let _obstacleWarnCooldown = 0;
