@@ -1,0 +1,174 @@
+// ════════════════════════════════════════════════════════════
+// QUIZ DIAGNOSTIQUE — Robot Dashboard
+// 5 questions sur les capteurs ROS, 20 pts chacune = 100 pts max
+// Se déclenche après 10 s de simulation
+// Dépend de : auth.js (Supabase), state.js (simMode, simT)
+// ════════════════════════════════════════════════════════════
+
+const QUIZ_QUESTIONS = [
+  {
+    q: 'Quel topic ROS transporte les données du LiDAR ?',
+    opts: ['/odom', '/scan', '/tf', '/cmd_vel'],
+    correct: 1,
+    hint: '/scan publie les mesures LaserScan à ~10 Hz — les distances sur 360°.',
+  },
+  {
+    q: 'Pourquoi le LiDAR corrige-t-il la dérive odométrique ?',
+    opts: [
+      'Il mesure la vitesse du robot',
+      'Il ancre la position sur la carte (pas de drift)',
+      'Il contrôle les moteurs',
+      'Il mesure la tension batterie',
+    ],
+    correct: 1,
+    hint: 'L\'odom intègre des erreurs → drift cumulatif. Le LiDAR se "voit" dans la carte sans jamais dériver.',
+  },
+  {
+    q: 'Quelle est la fréquence typique du topic /imu/data ?',
+    opts: ['1 Hz', '10 Hz', '50 Hz', '100 Hz'],
+    correct: 3,
+    hint: 'L\'IMU tourne à 100 Hz pour capturer les mouvements rapides (vibrations, rotations brusques).',
+  },
+  {
+    q: 'rosbridge WebSocket permet de…',
+    opts: [
+      'Flasher le firmware du robot',
+      'Accéder aux topics ROS depuis un navigateur',
+      'Calibrer les capteurs à distance',
+      'Contrôler la batterie LiPo',
+    ],
+    correct: 1,
+    hint: 'rosbridge traduit les topics ROS en JSON sur WebSocket — c\'est ce qui fait tourner ce dashboard !',
+  },
+  {
+    q: 'Le topic /tf gère…',
+    opts: [
+      'Les images de la caméra',
+      'La vitesse de translation',
+      'Les transformations entre repères (map→odom→base)',
+      'Les topics filtrés par fréquence',
+    ],
+    correct: 2,
+    hint: '/tf diffuse en continu les matrices de transformation entre tous les repères — indispensable pour la navigation.',
+  },
+];
+
+const quizState = {
+  started:   false,
+  idx:       0,
+  score:     0,
+  answered:  false,
+  bestDb:    0,
+  completed: false,
+};
+
+// ── Démarre le quiz après 10 s de simulation ──────────────────
+let _quizPollId = null;
+function quizStartPolling() {
+  if (_quizPollId) return;
+  _quizPollId = setInterval(() => {
+    if (typeof simMode !== 'undefined' && simMode &&
+        typeof simT   !== 'undefined' && simT >= 10 &&
+        !quizState.started && !quizState.completed) {
+      quizState.started = true;
+      clearInterval(_quizPollId);
+      quizShowQuestion();
+    }
+  }, 1000);
+}
+
+// ── Affiche la question courante ──────────────────────────────
+function quizShowQuestion() {
+  if (quizState.idx >= QUIZ_QUESTIONS.length) {
+    quizFinish();
+    return;
+  }
+  const q = QUIZ_QUESTIONS[quizState.idx];
+  quizState.answered = false;
+
+  document.getElementById('quizOverlay').style.display = '';
+  document.getElementById('quizProgress').textContent =
+    `${quizState.idx + 1} / ${QUIZ_QUESTIONS.length}`;
+  document.getElementById('quizQ').textContent = q.q;
+  document.getElementById('quizHint').style.display = 'none';
+  document.getElementById('quizHint').textContent = '';
+
+  const optsEl = document.getElementById('quizOpts');
+  optsEl.innerHTML = q.opts.map((o, i) =>
+    `<button class="quiz-opt" onclick="quizAnswer(${i})">${o}</button>`
+  ).join('');
+
+  document.getElementById('quizScoreBar').style.display = '';
+  document.getElementById('quizScoreEl').textContent = quizState.score;
+}
+
+// ── Traitement de la réponse ─────────────────────────────────
+function quizAnswer(idx) {
+  if (quizState.answered) return;
+  quizState.answered = true;
+
+  const q       = QUIZ_QUESTIONS[quizState.idx];
+  const correct = idx === q.correct;
+  if (correct) quizState.score += 20;
+
+  // Colorise les boutons
+  const btns = document.querySelectorAll('.quiz-opt');
+  btns.forEach((b, i) => {
+    b.disabled = true;
+    if (i === q.correct) b.classList.add('quiz-opt-correct');
+    else if (i === idx && !correct) b.classList.add('quiz-opt-wrong');
+  });
+
+  // Affiche l'explication
+  const hintEl = document.getElementById('quizHint');
+  hintEl.textContent = (correct ? '✅ ' : '❌ ') + q.hint;
+  hintEl.style.display = '';
+  hintEl.style.color   = correct ? 'var(--green)' : 'var(--red)';
+
+  document.getElementById('quizScoreEl').textContent = quizState.score;
+
+  // Passe à la question suivante après 4 s
+  quizState.idx++;
+  setTimeout(quizShowQuestion, 4500);
+}
+
+// ── Fin du quiz ───────────────────────────────────────────────
+async function quizFinish() {
+  quizState.completed = true;
+  document.getElementById('quizQ').textContent = '🎉 Quiz terminé !';
+  document.getElementById('quizOpts').innerHTML = '';
+  document.getElementById('quizHint').style.display = 'none';
+  document.getElementById('quizProgress').textContent = 'Terminé';
+
+  const total = quizState.score;
+  document.getElementById('quizScoreEl').textContent = total;
+
+  const msg = document.getElementById('quizFinishMsg');
+  msg.style.display = '';
+  msg.textContent = total === 100 ? '🏆 Score parfait — expert ROS !'
+    : total >= 60 ? `💪 ${total}/100 pts — bon travail !`
+    : `📚 ${total}/100 pts — relis les explications !`;
+
+  // Enregistre en DB si meilleur score
+  if (total > quizState.bestDb) {
+    quizState.bestDb = total;
+    try {
+      const user = Auth.getCurrentUser();
+      if (user) await Auth.updateScore(user.username, 'dashboard', total);
+    } catch (e) { /* silencieux */ }
+  }
+
+  // Ferme après 8 s
+  setTimeout(() => {
+    document.getElementById('quizOverlay').style.display = 'none';
+  }, 8000);
+}
+
+// ── Init : charge le score DB au démarrage ────────────────────
+window.addEventListener('load', () => {
+  Auth.init().then(() => {
+    const user = Auth.getCurrentUser();
+    if (user) quizState.bestDb = user.scores.dashboard || 0;
+  }).catch(() => {});
+  quizStartPolling();
+});

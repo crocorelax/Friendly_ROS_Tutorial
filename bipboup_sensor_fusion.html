@@ -142,9 +142,19 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
 
 ::-webkit-scrollbar{width:3px}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* ── Mode Défi ── */
+.defi-card{border:1.5px solid var(--border2);border-radius:8px;padding:8px 10px;margin-bottom:5px;cursor:pointer;transition:.15s;background:var(--panel2)}
+.defi-card:hover{border-color:var(--yellow);background:rgba(234,179,8,.04)}
+.defi-card.done{border-color:var(--green);background:rgba(0,214,143,.05)}
+.defi-card.active-ch{border-color:var(--orange);background:rgba(249,115,22,.07)}
+.defi-head{display:flex;justify-content:space-between;align-items:center;gap:4px;margin-bottom:3px}
+.defi-name{font-size:11px;font-weight:800;font-family:var(--sans)}
 </style>
 </head>
 <body>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="shared/supabase-client.js"></script>
 <script src="shared/storage.js"></script>
 <script src="shared/auth.js"></script>
 <script>(function(){try{var s=JSON.parse(localStorage.getItem('bipboup_session'));if(!s||!s.username)throw 0;}catch(e){window.location.replace('index.html');}})()</script>
@@ -384,6 +394,16 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
             <div class="ec-val" id="errFusion" style="color:var(--orange)">—</div>
             <div class="ec-label">FUSION (cm)</div>
           </div>
+        </div>
+      </div>
+
+      <!-- MODE DÉFI -->
+      <div class="sb-section">
+        <div class="sb-title">🏆 Mode Défi</div>
+        <div id="sfDefiList"><div style="font-size:10px;color:var(--muted);padding:4px 0">Chargement…</div></div>
+        <div id="sfDefiScoreRow" style="display:none;margin-top:6px;padding:8px;background:var(--panel2);border:1px solid var(--border);border-radius:8px;text-align:center">
+          <div style="font-size:18px;font-weight:900;font-family:var(--mono)" id="sfDefiTotalEl">0</div>
+          <div style="font-size:9px;color:var(--muted);letter-spacing:.5px;margin-top:2px">SCORE FUSION</div>
         </div>
       </div>
 
@@ -759,13 +779,13 @@ function kalmanUpdateSensor(zx, zy, R_noise) {
 // Odom covariance (separate, for ellipse display — grows with drift)
 function updateOdomCov(dt, distTrue) {
   const driftScale = (1 + p_odomDrift*5 + p_odomSlip*3 + (faults.slip?4:0) + (gyro.active?0:3));
-  const qO = 0.08 * dt * driftScale + distTrue * p_odomDrift * 0.5;
+  const qO = 0.008 * dt * driftScale + distTrue * p_odomDrift * 0.02;
   OP.xx += qO;
   OP.yy += qO;
   // Angle drift creates asymmetric uncertainty
   OP.xy += qO * 0.4 * Math.sign(odom.angularBias);
   OP.xy = clamp(OP.xy, -OP.xx*0.85, OP.xx*0.85);
-  OP.xx = Math.min(OP.xx, 2.0); OP.yy = Math.min(OP.yy, 2.0);
+  OP.xx = Math.min(OP.xx, 0.25); OP.yy = Math.min(OP.yy, 0.25);
   // Partial reset when LiDAR corrects odom
   if (lidar.active && lidar.blind<=0) {
     OP.xx *= 0.96; OP.yy *= 0.96; OP.xy *= 0.95;
@@ -1032,25 +1052,23 @@ function drawOverview() {
     });
   }
 
-  // ── COVARIANCE ELLIPSES (the key Kalman visualization) ──
-  // Visual scale factors: amplify for legibility while preserving relative sizes.
-  // KP in m² → need ×5000 to get visible pixels at typical scale of ~90px/m
-  // OP in m² (larger) → ×120 gives reasonable display
-  const EV_FUSION = 5000;
-  const EV_ODOM   = 120;
+  // ── COVARIANCE ELLIPSES (2σ confidence region, en m²·px²/m² = px²) ──
+  // EV=1 → affichage physiquement exact : aRad = 2·√(P·scale²) px = 2σ à l'écran.
+  // La valeur minimale de 4 px dans drawCovEllipse assure la visibilité
+  // même quand la fusion est très précise (KP très petit).
   const s2 = scale * scale;
 
-  // Odom uncertainty ellipse (grows with drift, shrinks with LiDAR)
+  // Odom : grandit avec la dérive, réduit quand LiDAR actif
   if (odom.active) {
     const op=worldToCanvas(odom.x,odom.y,W,H,scale);
     drawCovEllipse(ovCtx, op.px, op.py,
-      OP.xx*s2*EV_ODOM, OP.yy*s2*EV_ODOM, OP.xy*s2*EV_ODOM, COLORS.odom, 280);
+      OP.xx*s2, OP.yy*s2, OP.xy*s2, COLORS.odom, 100);
   }
-  // Fusion uncertainty ellipse (Kalman posterior — should be smallest)
+  // Fusion (Kalman posterior) — doit rester plus petite que odom
   {
     const fp=worldToCanvas(fusion.x,fusion.y,W,H,scale);
     drawCovEllipse(ovCtx, fp.px, fp.py,
-      KP.xx*s2*EV_FUSION, KP.yy*s2*EV_FUSION, KP.xy*s2*EV_FUSION, COLORS.fusion, 260);
+      KP.xx*s2, KP.yy*s2, KP.xy*s2, COLORS.fusion, 80);
   }
 
   // Gyro arc
@@ -1319,7 +1337,7 @@ function loop(ts) {
   const dt=Math.min((ts-lastT)/1000, 0.05);
   lastT=ts;
   if(!paused){
-    if(appMode==='sim') simStep(dt);
+    if(appMode==='sim') { simStep(dt); sfCheckChallenge(); }
     else if(appMode==='ros') updateTopicHealth();
   }
   drawAll();
@@ -1555,6 +1573,131 @@ function initCanvases() {
 }
 
 // ══════════════════════════════════════════════════════════════════
+// MODE DÉFI — SENSOR FUSION
+// ══════════════════════════════════════════════════════════════════
+const SF_CHALLENGES = [
+  {
+    id: 1, name: 'Maîtrise optimale', icon: '🎯',
+    scenario: 'normal', duration: 20,
+    desc: 'Maintiens la RMSE Fusion sous 5 cm pendant 20 s. Ajuste les capteurs pour minimiser l\'erreur.',
+    score: (avgCm) => Math.max(0, Math.min(100, Math.round(100 - avgCm * 4))),
+  },
+  {
+    id: 2, name: 'Sol glissant', icon: '💦',
+    scenario: 'slip', duration: 25,
+    desc: 'Scénario "glissant" chargé ! Configure les capteurs pour compenser la dérive odométrique.',
+    score: (avgCm) => Math.max(0, Math.min(100, Math.round(100 - avgCm * 3))),
+  },
+  {
+    id: 3, name: 'Reconquête kidnap', icon: '🫳',
+    scenario: 'normal', duration: 30,
+    desc: 'Un kidnap surviendra à t=10 s de simulation ! Le LiDAR actif est la clé de la relocalisation.',
+    score: (avgCm) => Math.max(0, Math.min(100, Math.round(100 - avgCm * 2))),
+    kidnap: true, // auto-kidnap à t=10s
+  },
+];
+
+let sfActiveChallenge  = null;
+let sfChallengeStartT  = 0;   // simTime au lancement
+let sfChallengeEhStart = 0;   // index EH au lancement (après reset)
+let sfChallengeScores  = { 1: null, 2: null, 3: null };
+let sfBestDbScore      = 0;
+let sfKidnapFired      = false;
+let sfLastPanelUpdate  = -1;
+
+function sfRenderDefiPanel() {
+  const html = SF_CHALLENGES.map(c => {
+    const sc       = sfChallengeScores[c.id];
+    const done     = sc !== null;
+    const isActive = sfActiveChallenge?.id === c.id;
+    const elapsed  = isActive ? Math.max(0, Math.floor(simTime - sfChallengeStartT)) : 0;
+    const remaining = isActive ? Math.max(0, c.duration - elapsed) : 0;
+    return `<div class="defi-card${done ? ' done' : ''}${isActive ? ' active-ch' : ''}" onclick="sfLaunchChallenge(${c.id})">
+      <div class="defi-head">
+        <span class="defi-name">${isActive ? '🟠' : done ? '✅' : '⬜'} ${c.icon} ${c.name}</span>
+        <span style="font-size:10px;font-family:var(--mono);color:${done ? 'var(--green)' : isActive ? 'var(--yellow)' : 'var(--muted)'}">${done ? sc+'pts' : isActive ? remaining+'s' : '100pts'}</span>
+      </div>
+      <div style="font-size:9px;color:var(--muted);line-height:1.4">${c.desc}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('sfDefiList').innerHTML = html;
+  const total = Object.values(sfChallengeScores).reduce((s,v) => s+(v||0), 0);
+  document.getElementById('sfDefiScoreRow').style.display = '';
+  const el = document.getElementById('sfDefiTotalEl');
+  el.textContent = total + ' / 300 pts';
+  el.style.color = total >= 200 ? 'var(--green)' : total >= 100 ? 'var(--yellow)' : 'var(--muted)';
+}
+
+function sfLaunchChallenge(id) {
+  const c = SF_CHALLENGES.find(x => x.id === id);
+  if (!c) return;
+  sfActiveChallenge = c;
+  sfKidnapFired     = false;
+  setScenario(c.scenario);            // reset EH + simTime d'abord
+  sfChallengeEhStart = EH.t.length;  // = 0 après le reset
+  sfChallengeStartT  = simTime;      // = 0 après resetSim()
+  sfLastPanelUpdate  = -1;
+  if (paused) togglePause();
+  document.getElementById('chip').textContent = `🏆 Défi "${c.name}" — ${c.duration}s`;
+  document.getElementById('chip').className = 'chip warn';
+  sfRenderDefiPanel();
+}
+
+function sfCheckChallenge() {
+  if (!sfActiveChallenge) return;
+  const c       = sfActiveChallenge;
+  const elapsed = simTime - sfChallengeStartT;
+
+  // Auto-kidnap pour le défi 3
+  if (c.kidnap && !sfKidnapFired && elapsed >= 10) {
+    sfKidnapFired = true;
+    triggerKidnap();
+  }
+
+  // Mise à jour compte à rebours chip + panel (1/s)
+  const remaining = Math.max(0, Math.ceil(c.duration - elapsed));
+  document.getElementById('chip').textContent = `🏆 Défi "${c.name}" — ${remaining}s`;
+  if (simTime - sfLastPanelUpdate >= 1) {
+    sfLastPanelUpdate = Math.floor(simTime);
+    sfRenderDefiPanel();
+  }
+
+  if (elapsed < c.duration) return;
+
+  // ── Fin de défi : calcul du score ──
+  sfActiveChallenge = null;
+
+  const samples = EH.fusion.slice(sfChallengeEhStart);
+  const validSamples = samples.filter(v => isFinite(v));
+  const avgRmse = validSamples.length > 0
+    ? validSamples.reduce((s,v) => s+v, 0) / validSamples.length
+    : 0.5;
+  const avgRmseCm = avgRmse * 100;
+
+  const pts  = c.score(avgRmseCm);
+  const prev = sfChallengeScores[c.id] || 0;
+  if (pts > prev) sfChallengeScores[c.id] = pts;
+
+  const total = Object.values(sfChallengeScores).reduce((s,v) => s+(v||0), 0);
+  if (total > sfBestDbScore) {
+    sfBestDbScore = total;
+    const user = Auth.getCurrentUser();
+    if (user) Auth.updateScore(user.username, 'fusion', total).catch(() => {});
+  }
+
+  const won = pts >= 70;
+  document.getElementById('chip').textContent =
+    `${won ? '✅' : '📊'} Défi terminé: ${pts}/100 pts (RMSE moy. ${avgRmseCm.toFixed(1)} cm)`;
+  document.getElementById('chip').className = 'chip ' + (won ? 'ok' : '');
+
+  // showNotif n'existe pas dans sensor_fusion — on fait un chip + bottombar
+  const bb = document.getElementById('bbFusionErr');
+  if (bb) bb.style.color = won ? 'var(--green)' : 'var(--yellow)';
+
+  sfRenderDefiPanel();
+}
+
+// ══════════════════════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════════════════════
 window.addEventListener('load',()=>{
@@ -1563,6 +1706,11 @@ window.addEventListener('load',()=>{
   updateSimSliders();
   updateExpl();
   requestAnimationFrame(loop);
+  Auth.init().then(() => {
+    const user = Auth.getCurrentUser();
+    if (user) sfBestDbScore = user.scores.fusion || 0;
+    sfRenderDefiPanel();
+  }).catch(() => sfRenderDefiPanel());
 });
 </script>
 </body>

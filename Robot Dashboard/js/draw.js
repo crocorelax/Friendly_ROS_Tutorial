@@ -174,52 +174,86 @@ function drawOdom() {
   if (!W || !H) return;
   c.fillStyle = '#060810'; c.fillRect(0, 0, W, H);
 
-  c.strokeStyle = 'rgba(30,37,53,.8)'; c.lineWidth = .5;
-  const gs = 30;
-  for (let x = W / 2 % gs; x < W; x += gs) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, H); c.stroke(); }
-  for (let y = H / 2 % gs; y < H; y += gs) { c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); }
+  // ── Échelle fixe calée sur l'arène (ou ±3 m en mode réel) ─
+  const aW = (typeof ARENA !== 'undefined') ? ARENA.w : 6;
+  const aH = (typeof ARENA !== 'undefined') ? ARENA.h : 4;
+  const margin = 0.82;
+  const scale = Math.min(W * margin / aW, H * margin / aH);
+  const cx = W / 2, cy = H / 2;
+  // Axes : +X → droite, +Y → haut (convention ROS vue de dessus)
+  const toX = x =>  cx + x * scale;
+  const toY = y =>  cy - y * scale;
 
+  // ── Grille métrique ────────────────────────────────────
+  c.strokeStyle = 'rgba(30,37,53,.7)'; c.lineWidth = .5;
+  for (let gx = -Math.ceil(aW / 2); gx <= Math.ceil(aW / 2); gx++) {
+    c.beginPath(); c.moveTo(toX(gx), toY(-aH / 2 - .2)); c.lineTo(toX(gx), toY(aH / 2 + .2)); c.stroke();
+  }
+  for (let gy = -Math.ceil(aH / 2); gy <= Math.ceil(aH / 2); gy++) {
+    c.beginPath(); c.moveTo(toX(-aW / 2 - .2), toY(gy)); c.lineTo(toX(aW / 2 + .2), toY(gy)); c.stroke();
+  }
+
+  // ── Périmètre arène ────────────────────────────────────
+  if (typeof ARENA !== 'undefined') {
+    c.strokeStyle = 'rgba(56,189,248,.55)'; c.lineWidth = 1.5;
+    c.strokeRect(toX(-ARENA.hw), toY(ARENA.hh), ARENA.w * scale, ARENA.h * scale);
+    c.fillStyle = 'rgba(56,189,248,.35)'; c.font = '8px JetBrains Mono,monospace';
+    c.textAlign = 'center'; c.textBaseline = 'top';
+    c.fillText(`Arène ${ARENA.w} m × ${ARENA.h} m`, cx, toY(ARENA.hh) + 2);
+    c.textBaseline = 'alphabetic';
+
+    // ── Obstacles ────────────────────────────────────────
+    SIM_WALLS.forEach(w => {
+      c.fillStyle = 'rgba(30,58,95,.75)';
+      c.strokeStyle = 'rgba(59,130,246,.5)'; c.lineWidth = 1;
+      const wx = toX(w.x - w.w / 2), wy = toY(w.y + w.h / 2);
+      c.fillRect(wx, wy, w.w * scale, w.h * scale);
+      c.strokeRect(wx, wy, w.w * scale, w.h * scale);
+    });
+
+    // ── Waypoints (petits losanges) ──────────────────────
+    WAYPOINTS.forEach((wp, i) => {
+      c.fillStyle = (i === _wpIdx) ? 'rgba(234,179,8,.75)' : 'rgba(74,85,104,.4)';
+      const wx = toX(wp.x), wy = toY(wp.y), d = (i === _wpIdx) ? 5 : 3;
+      c.beginPath(); c.moveTo(wx, wy - d); c.lineTo(wx + d, wy); c.lineTo(wx, wy + d); c.lineTo(wx - d, wy); c.closePath(); c.fill();
+    });
+  }
+
+  // ── Tracé odométrique ──────────────────────────────────
   const hist = state.odomHistory;
   if (hist.length < 2) {
-    c.fillStyle = 'rgba(74,85,104,.5)'; c.font = '10px JetBrains Mono,monospace'; c.textAlign = 'center';
-    c.fillText('En attente de données...', W / 2, H / 2);
-    return;
+    c.fillStyle = 'rgba(74,85,104,.5)'; c.font = '10px JetBrains Mono,monospace';
+    c.textAlign = 'center'; c.fillText('En attente de données...', cx, cy + 12);
+  } else {
+    c.save();
+    for (let i = 1; i < hist.length; i++) {
+      const t = i / hist.length;
+      c.strokeStyle = `rgba(167,139,250,${.15 + t * .72})`;
+      c.lineWidth   = .8 + t * .6;
+      c.beginPath();
+      c.moveTo(toX(hist[i - 1].x), toY(hist[i - 1].y));
+      c.lineTo(toX(hist[i].x),     toY(hist[i].y));
+      c.stroke();
+    }
+    c.restore();
+    // Point départ
+    c.fillStyle = 'rgba(56,189,248,.6)';
+    c.beginPath(); c.arc(toX(hist[0].x), toY(hist[0].y), 3.5, 0, Math.PI * 2); c.fill();
   }
 
-  const xs = hist.map(p => p.x), ys = hist.map(p => p.y);
-  const minX = Math.min(...xs), maxX = Math.max(...xs);
-  const minY = Math.min(...ys), maxY = Math.max(...ys);
-  const padX = (maxX - minX) * .2 + .5, padY = (maxY - minY) * .2 + .5;
-  const scale = Math.min(W / (maxX - minX + padX * 2), H / (maxY - minY + padY * 2), 80);
-  const offX  = W / 2 - (minX + maxX) / 2 * scale;
-  const offY  = H / 2 - (minY + maxY) / 2 * scale;
-  const toC   = p => ({ cx: offX + p.x * scale, cy: offY + p.y * scale });
+  // ── Robot (position + flèche de cap) ──────────────────
+  const rx = toX(state.odom.x), ry = toY(state.odom.y);
+  const hr = state.heading * Math.PI / 180;
+  c.fillStyle = '#1e3a8a'; c.strokeStyle = '#3b82f6'; c.lineWidth = 1.5;
+  c.beginPath(); c.arc(rx, ry, 6, 0, Math.PI * 2); c.fill(); c.stroke();
+  // Nez du robot (flèche dans la direction du cap)
+  c.strokeStyle = '#93c5fd'; c.lineWidth = 2; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(rx, ry);
+  c.lineTo(rx + Math.cos(hr) * 12, ry - Math.sin(hr) * 12); c.stroke();
 
-  c.save();
-  for (let i = 1; i < hist.length; i++) {
-    const a = toC(hist[i - 1]), b = toC(hist[i]);
-    const t = i / hist.length;
-    c.strokeStyle = `rgba(167,139,250,${.2 + t * .7})`;
-    c.lineWidth = 1 + t;
-    c.beginPath(); c.moveTo(a.cx, a.cy); c.lineTo(b.cx, b.cy); c.stroke();
-  }
-  c.restore();
-
-  const start = toC(hist[0]);
-  c.fillStyle = 'rgba(56,189,248,.6)'; c.beginPath(); c.arc(start.cx, start.cy, 4, 0, Math.PI * 2); c.fill();
-  c.fillStyle = 'rgba(56,189,248,.5)'; c.font = '8px JetBrains Mono,monospace'; c.textAlign = 'left';
-  c.fillText('START', start.cx + 6, start.cy);
-
-  const cur = toC(hist[hist.length - 1]);
-  c.save(); c.translate(cur.cx, cur.cy); c.rotate(state.heading * Math.PI / 180);
-  c.fillStyle = '#3b82f6'; c.strokeStyle = '#93c5fd'; c.lineWidth = 1.5;
-  c.beginPath(); c.arc(0, 0, 6, 0, Math.PI * 2); c.fill(); c.stroke();
-  c.strokeStyle = '#93c5fd'; c.lineWidth = 2;
-  c.beginPath(); c.moveTo(0, 0); c.lineTo(0, -12); c.stroke();
-  c.restore();
-
+  // ── Légende bas ────────────────────────────────────────
   c.fillStyle = 'rgba(74,85,104,.7)'; c.font = '8px JetBrains Mono,monospace'; c.textAlign = 'left';
-  c.fillText(`x:${state.odom.x.toFixed(2)}m  y:${state.odom.y.toFixed(2)}m  cap:${state.heading.toFixed(0)}°`, 6, H - 6);
+  c.fillText(`x:${state.odom.x.toFixed(2)} m  y:${state.odom.y.toFixed(2)} m  cap:${state.heading.toFixed(0)}°`, 6, H - 6);
 }
 
 // ── Gyro 3D cube ──────────────────────────────────────────

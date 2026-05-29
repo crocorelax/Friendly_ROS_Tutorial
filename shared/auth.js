@@ -22,13 +22,16 @@ const Auth = (() => {
   // Écrit un snapshot du profil dans bipboup_session (pour les gardes inline)
   function _writeLocalSession(p) {
     Storage.setSession({
-      username:     p.username,
-      role:         p.role,
-      lives:        p.lives,
-      score_low:    p.score_low    || 0,
-      score_high:   p.score_high   || 0,
-      progress_low: p.progress_low || 1,
-      loginAt:      Date.now(),
+      username:           p.username,
+      role:               p.role,
+      lives:              p.lives,
+      score_low:          p.score_low          || 0,
+      score_high:         p.score_high         || 0,
+      score_pathfinding:  p.score_pathfinding  || 0,
+      score_fusion:       p.score_fusion       || 0,
+      score_dashboard:    p.score_dashboard    || 0,
+      progress_low:       p.progress_low       || 1,
+      loginAt:            Date.now(),
     });
   }
 
@@ -146,7 +149,13 @@ const Auth = (() => {
         username: _profile.username,
         role:     _profile.role,
         lives:    _profile.lives,
-        scores:   { low: _profile.score_low || 0, high: _profile.score_high || 0 },
+        scores: {
+          low:          _profile.score_low          || 0,
+          high:         _profile.score_high         || 0,
+          pathfinding:  _profile.score_pathfinding  || 0,
+          fusion:       _profile.score_fusion       || 0,
+          dashboard:    _profile.score_dashboard    || 0,
+        },
         progress: { lowUnlocked: _profile.progress_low || 1 },
       };
     }
@@ -157,7 +166,13 @@ const Auth = (() => {
       username: s.username,
       role:     s.role,
       lives:    typeof s.lives === 'number' ? s.lives : 3,
-      scores:   { low: s.score_low || 0, high: s.score_high || 0 },
+      scores: {
+        low:          s.score_low          || 0,
+        high:         s.score_high         || 0,
+        pathfinding:  s.score_pathfinding  || 0,
+        fusion:       s.score_fusion       || 0,
+        dashboard:    s.score_dashboard    || 0,
+      },
       progress: { lowUnlocked: s.progress_low || 1 },
     };
   }
@@ -171,8 +186,12 @@ const Auth = (() => {
   // ── Mise à jour du profil (async, optimiste) ──────────────
 
   async function updateScore(username, tier, score) {
-    const col = tier === 'low' ? 'score_low' : 'score_high';
-    if (_profile && _profile.username === username.toLowerCase()) {
+    const tierToCol = {
+      low: 'score_low', high: 'score_high',
+      pathfinding: 'score_pathfinding', fusion: 'score_fusion', dashboard: 'score_dashboard',
+    };
+    const col = tierToCol[tier];
+    if (_profile && col && _profile.username === username.toLowerCase()) {
       if (score <= (_profile[col] || 0)) return; // pas d'amélioration
       // Mise à jour optimiste du cache (callers sync voient la valeur immédiatement)
       _profile[col] = score;

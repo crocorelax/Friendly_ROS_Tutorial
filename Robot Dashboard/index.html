@@ -14,6 +14,10 @@
   catch(e){window.location.replace('../index.html');}
 })();
 </script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="../shared/supabase-client.js"></script>
+<script src="../shared/storage.js"></script>
+<script src="../shared/auth.js"></script>
 
 <div class="app">
 
@@ -24,7 +28,7 @@
       <div class="tb-dot" style="background:#eab308"></div>
       <div class="tb-dot" style="background:#22c55e"></div>
     </div>
-    <button class="tb-back" onclick="window.location.href='../index.html'">← Menu</button>
+    <button class="tb-back" onclick="window.location.href='../index.html'">← Plateforme</button>
     <div class="tb-title">BipBoup · Robot Live Dashboard — Club 3iL</div>
     <div class="tb-conn">
       <div class="conn-dot" id="connDot" style="background:var(--muted);animation:none"></div>
@@ -274,11 +278,46 @@
 
 <div class="notif" id="notif"></div>
 
+<!-- ── QUIZ DIAGNOSTIQUE ─────────────────────────────── -->
+<div id="quizOverlay" style="display:none;position:fixed;bottom:44px;right:16px;width:330px;z-index:200;font-family:'Nunito',sans-serif">
+  <div style="background:#111520;border:1.5px solid #252f42;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.6);overflow:hidden">
+    <!-- Header -->
+    <div style="background:#161b26;border-bottom:1px solid #1e2535;padding:10px 14px;display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:12px;font-weight:900;color:#c9d1e0">🎓 Quiz Diagnostique</span>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:10px;font-family:'JetBrains Mono',monospace;color:#4a5568" id="quizProgress">1/5</span>
+        <button onclick="document.getElementById('quizOverlay').style.display='none'" style="background:transparent;border:none;color:#4a5568;cursor:pointer;font-size:14px;line-height:1;padding:0">✕</button>
+      </div>
+    </div>
+    <!-- Body -->
+    <div style="padding:14px">
+      <div id="quizQ" style="font-size:12px;font-weight:800;color:#c9d1e0;line-height:1.5;margin-bottom:10px">Chargement…</div>
+      <div id="quizOpts" style="display:flex;flex-direction:column;gap:5px"></div>
+      <div id="quizHint" style="display:none;font-size:10px;line-height:1.5;margin-top:8px;padding:6px 8px;border-radius:6px;background:rgba(255,255,255,.04)"></div>
+      <div id="quizFinishMsg" style="display:none;font-size:11px;font-weight:800;color:#00d68f;margin-top:8px;text-align:center"></div>
+    </div>
+    <!-- Footer score -->
+    <div id="quizScoreBar" style="background:#0b0d11;border-top:1px solid #1e2535;padding:7px 14px;display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:10px;color:#4a5568;font-family:'JetBrains Mono',monospace">Score session</span>
+      <span style="font-size:14px;font-weight:900;font-family:'JetBrains Mono',monospace;color:#c9d1e0"><span id="quizScoreEl">0</span> / 100 pts</span>
+    </div>
+  </div>
+</div>
+
+<style>
+.quiz-opt{width:100%;text-align:left;background:#161b26;border:1.5px solid #252f42;border-radius:7px;padding:7px 10px;font-size:11px;font-weight:700;font-family:'Nunito',sans-serif;color:#c9d1e0;cursor:pointer;transition:.12s}
+.quiz-opt:hover:not(:disabled){border-color:#38bdf8;color:#38bdf8;background:rgba(56,189,248,.06)}
+.quiz-opt:disabled{cursor:not-allowed;opacity:.7}
+.quiz-opt-correct{border-color:#00d68f!important;color:#00d68f!important;background:rgba(0,214,143,.1)!important}
+.quiz-opt-wrong{border-color:#ef4444!important;color:#ef4444!important;background:rgba(239,68,68,.08)!important}
+</style>
+
 <script src="js/state.js"></script>
 <script src="js/rosbridge.js"></script>
 <script src="js/sim.js"></script>
 <script src="js/draw.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/main.js"></script>
+<script src="js/quiz.js"></script>
 </body>
 </html>

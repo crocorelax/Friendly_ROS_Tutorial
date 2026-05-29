@@ -133,9 +133,19 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
 
 /* animations */
 @keyframes pop{0%{transform:scale(.8);opacity:0}60%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
+
+/* ── Mode Défi ── */
+.defi-card{border:1.5px solid var(--border2);border-radius:8px;padding:8px 10px;margin-bottom:5px;cursor:pointer;transition:.15s;background:var(--panel2)}
+.defi-card:hover{border-color:var(--yellow);background:rgba(234,179,8,.04)}
+.defi-card.done{border-color:var(--green);background:rgba(0,214,143,.05)}
+.defi-card.active-ch{border-color:var(--orange);background:rgba(249,115,22,.07)}
+.defi-head{display:flex;justify-content:space-between;align-items:center;gap:4px;margin-bottom:3px}
+.defi-name{font-size:11px;font-weight:800;font-family:var(--sans)}
 </style>
 </head>
 <body>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="shared/supabase-client.js"></script>
 <script src="shared/storage.js"></script>
 <script src="shared/auth.js"></script>
 <script>(function(){try{var s=JSON.parse(localStorage.getItem('bipboup_session'));if(!s||!s.username)throw 0;}catch(e){window.location.replace('index.html');}})()</script>
@@ -234,6 +244,16 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
         <div class="preset-btn" onclick="loadPreset('corridor')">🚪 Couloir</div>
         <div class="preset-btn" onclick="loadPreset('arena')">🤖 Arène</div>
         <div class="preset-btn" onclick="loadPreset('random')">🎲 Aléatoire</div>
+      </div>
+    </div>
+
+    <!-- MODE DÉFI -->
+    <div class="sb-section">
+      <div class="sb-title">🏆 Mode Défi</div>
+      <div id="defiList"><div style="font-size:10px;color:var(--muted);padding:4px 0">Chargement…</div></div>
+      <div id="defiScoreRow" style="display:none;margin-top:6px;padding:8px;background:var(--panel2);border:1px solid var(--border);border-radius:8px;text-align:center">
+        <div style="font-size:18px;font-weight:900;font-family:var(--mono)" id="defiTotalEl">0</div>
+        <div style="font-size:9px;color:var(--muted);letter-spacing:.5px;margin-top:2px">SCORE PATHFINDING</div>
       </div>
     </div>
 
@@ -403,23 +423,20 @@ function draw() {
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText('E', x + CELL/2, y + CELL/2);
       } else if (s === OPEN) {
-        // Explored but not yet processed — green tint, wave
-        const wave = .25 + Math.sin(animT * 3 + c * .3 + r * .3) * .1;
-        ctx.fillStyle = `rgba(0,214,143,${wave})`;
+        // Explored but not yet processed — green tint (static fill, no per-cell Math.sin)
+        ctx.fillStyle = 'rgba(0,214,143,.25)';
         ctx.fillRect(px, py, pw, ph);
-        ctx.strokeStyle = `rgba(0,214,143,.4)`; ctx.lineWidth = .5;
+        ctx.strokeStyle = 'rgba(0,214,143,.4)'; ctx.lineWidth = .5;
         ctx.strokeRect(px, py, pw, ph);
       } else if (s === CLOSED) {
-        // Already processed — purple
-        const fade = .18 + Math.sin(animT * .5 + c * .1) * .05;
-        ctx.fillStyle = `rgba(167,139,250,${fade})`;
+        // Already processed — purple (static fill, no per-cell Math.sin)
+        ctx.fillStyle = 'rgba(167,139,250,.18)';
         ctx.fillRect(px, py, pw, ph);
         ctx.strokeStyle = 'rgba(167,139,250,.25)'; ctx.lineWidth = .3;
         ctx.strokeRect(px, py, pw, ph);
       } else if (s === PATH) {
-        // Final path — yellow/gold animated
-        const glow = .8 + Math.sin(animT * 4 + c * .4) * .2;
-        ctx.fillStyle = `rgba(234,179,8,${glow})`;
+        // Final path — yellow/gold
+        ctx.fillStyle = 'rgba(234,179,8,.85)';
         ctx.fillRect(px, py, pw, ph);
         // Center dot
         ctx.fillStyle = 'rgba(0,0,0,.4)';
@@ -444,20 +461,7 @@ function draw() {
     ctx.restore();
   }
 
-  // fScore heatmap labels (A* only, when not too many cells)
-  if (algo === 'astar' && exploredCount < 200 && !foundPath) {
-    ctx.font = `${CELL*.32}px JetBrains Mono,monospace`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    for (const key in fScore) {
-      const [r, c] = key.split(',').map(Number);
-      if (grid[r] && (grid[r][c] === OPEN || grid[r][c] === CLOSED)) {
-        ctx.fillStyle = grid[r][c] === OPEN ? 'rgba(0,214,143,.5)' : 'rgba(167,139,250,.4)';
-        ctx.fillText(Math.round(fScore[key]), c*CELL+CELL/2, r*CELL+CELL/2);
-      }
-    }
-  }
-
-  if (running || foundPath) requestAnimationFrame(draw);
+  if (running) requestAnimationFrame(draw);
 }
 
 // ══════════════════════════════════════════════
@@ -714,10 +718,16 @@ function onFound() {
   document.getElementById('scPath').textContent = pathCells.length;
   document.getElementById('scTime').textContent = elapsed;
   document.getElementById('scEff').textContent = eff + '%';
-  setChip(`✅ Chemin trouvé ! ${pathCells.length} cases · ${exploredCount} explorés`, 'done');
   stopAlgo();
   updateExpl('found');
-  showNotif(`🎉 Chemin trouvé en ${elapsed}ms !`, 'green');
+
+  // ── Mode Défi ──
+  if (activeChallenge) {
+    _scoreChallengeOnFound(); // affiche sa propre notif + chip
+  } else {
+    setChip(`✅ Chemin trouvé ! ${pathCells.length} cases · ${exploredCount} explorés`, 'done');
+    showNotif(`🎉 Chemin trouvé en ${elapsed}ms !`, 'green');
+  }
 }
 
 function onNoPath() {
@@ -1001,12 +1011,117 @@ function showNotif(txt, type) {
 }
 
 // ══════════════════════════════════════════════
+// MODE DÉFI — PATHFINDING
+// ══════════════════════════════════════════════
+const CHALLENGES = [
+  {
+    id: 1, name: 'Labyrinthe A★', icon: '🌀',
+    preset: 'maze', algoReq: 'astar', maxPts: 100, effMult: 1.5,
+    desc: 'Résous le labyrinthe avec A★. Son heuristique guide directement vers l\'arrivée.',
+  },
+  {
+    id: 2, name: 'Couloir Dijkstra', icon: '🚪',
+    preset: 'corridor', algoReq: 'dijkstra', maxPts: 100, effMult: 2.5,
+    desc: 'Traverse le couloir en Dijkstra. Il explore plus mais garantit le chemin optimal.',
+  },
+  {
+    id: 3, name: 'Arène BFS', icon: '🤖',
+    preset: 'arena', algoReq: 'bfs', maxPts: 100, effMult: 3.0,
+    desc: 'Explore l\'arène avec BFS. Il garantit le plus court chemin en nombre de cases.',
+  },
+];
+
+let activeChallenge = null;
+let challengeScores  = { 1: null, 2: null, 3: null };
+let bestDbPathScore  = 0;
+
+function renderDefiPanel() {
+  const html = CHALLENGES.map(c => {
+    const sc       = challengeScores[c.id];
+    const done     = sc !== null;
+    const isActive = activeChallenge?.id === c.id;
+    return `<div class="defi-card${done ? ' done' : ''}${isActive ? ' active-ch' : ''}" onclick="launchChallenge(${c.id})">
+      <div class="defi-head">
+        <span class="defi-name">${isActive ? '🟠' : done ? '✅' : '⬜'} ${c.icon} ${c.name}</span>
+        <span style="font-size:10px;font-family:var(--mono);color:${done ? 'var(--green)' : 'var(--muted)'}">${done ? sc : c.maxPts} pts</span>
+      </div>
+      <div style="font-size:9px;color:var(--muted);line-height:1.4;margin-bottom:4px">${c.desc}</div>
+      <span style="font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(56,189,248,.12);color:var(--blue);font-family:var(--mono);font-weight:700">${c.algoReq.toUpperCase()} requis</span>
+    </div>`;
+  }).join('');
+
+  document.getElementById('defiList').innerHTML = html;
+
+  const total = Object.values(challengeScores).reduce((s, v) => s + (v || 0), 0);
+  document.getElementById('defiScoreRow').style.display = '';
+  const el = document.getElementById('defiTotalEl');
+  el.textContent = total + ' / 300 pts';
+  el.style.color = total >= 200 ? 'var(--green)' : total >= 100 ? 'var(--yellow)' : 'var(--muted)';
+}
+
+function launchChallenge(id) {
+  const c = CHALLENGES.find(x => x.id === id);
+  if (!c) return;
+  if (running) stopAlgo();
+  activeChallenge = c;
+  loadPreset(c.preset);
+  setAlgo(c.algoReq);
+  setChip(`🏆 Défi ${c.id} — Lance avec ${c.algoReq.toUpperCase()} !`, 'run');
+  showNotif(`🏆 Défi "${c.name}" — Utilise ${c.algoReq.toUpperCase()} !`, 'yellow');
+  renderDefiPanel();
+  updateExpl('idle');
+}
+
+function _scoreChallengeOnFound() {
+  if (!activeChallenge) return;
+  const c = activeChallenge;
+
+  if (algo !== c.algoReq) {
+    showNotif(`❌ Mauvais algo ! Défi exige ${c.algoReq.toUpperCase()}`, 'red');
+    setChip(`❌ Défi échoué — utilise ${c.algoReq.toUpperCase()}`, 'err');
+    activeChallenge = null;
+    renderDefiPanel();
+    return;
+  }
+
+  const eff = exploredCount > 0 ? (pathCells.length / exploredCount) * 100 : 0;
+  const pts = Math.min(c.maxPts, Math.round(eff * c.effMult));
+  const prev = challengeScores[c.id] || 0;
+  if (pts > prev) challengeScores[c.id] = pts;
+
+  const total = Object.values(challengeScores).reduce((s, v) => s + (v || 0), 0);
+  if (total > bestDbPathScore) {
+    bestDbPathScore = total;
+    const user = Auth.getCurrentUser();
+    if (user) Auth.updateScore(user.username, 'pathfinding', total).catch(() => {});
+  }
+
+  const won = pts >= c.maxPts * 0.7;
+  showNotif(
+    `${won ? '🎉' : '💪'} Défi ${c.id}: ${pts}/${c.maxPts} pts — Efficacité: ${eff.toFixed(0)}%`,
+    won ? 'green' : 'yellow',
+  );
+  setChip(
+    `${won ? '✅' : '📊'} Défi ${c.id}: ${pts} pts (eff. ${eff.toFixed(0)}%) — Lance un autre !`,
+    won ? 'done' : '',
+  );
+  activeChallenge = null;
+  renderDefiPanel();
+}
+
+// ══════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════
 window.addEventListener('load', () => {
   initGrid();
   updateExpl('idle');
   requestAnimationFrame(draw);
+  // Charge le score DB et initialise le panel
+  Auth.init().then(() => {
+    const user = Auth.getCurrentUser();
+    if (user) bestDbPathScore = user.scores.pathfinding || 0;
+    renderDefiPanel();
+  }).catch(() => renderDefiPanel());
 });
 window.addEventListener('resize', initGrid);
 </script>
