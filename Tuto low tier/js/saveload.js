@@ -50,6 +50,7 @@ async function doSave() {
   const name  = document.getElementById('slNameInput').value.trim();
   const errEl = document.getElementById('slSaveError');
   errEl.textContent = '';
+  if (Auth.isGuest())   { errEl.textContent = 'Sauvegarde indisponible en mode découverte.'; return; }
   if (!name)            { errEl.textContent = 'Donne un nom.'; return; }
   if (name.length > 40) { errEl.textContent = 'Nom trop long (max 40 car.).'; return; }
   if (!/^[\w\- ]+$/.test(name)) { errEl.textContent = 'Lettres, chiffres, - et espace uniquement.'; return; }

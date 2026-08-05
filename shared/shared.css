@@ -152,6 +152,36 @@ html, body {
 
 .auth-switch a:hover { text-decoration: underline; }
 
+.auth-guest {
+  width: 360px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-guest {
+  width: 100%;
+  background: transparent;
+  color: var(--blue);
+  border: 1px solid rgba(56,189,248,.35);
+  border-radius: 8px;
+  padding: 10px;
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  transition: .15s;
+}
+
+.btn-guest:hover { background: rgba(56,189,248,.08); border-color: var(--blue); }
+
+.auth-guest-note {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+}
+
 /* ══ MENU SCREEN ═════════════════════════════════════════ */
 #menuScreen {
   flex-direction: column;
@@ -221,6 +251,17 @@ html, body {
   background: rgba(249,115,22,.12);
   color: var(--orange);
   border-color: rgba(249,115,22,.3);
+}
+
+.guest-badge {
+  background: rgba(56,189,248,.12);
+  color: var(--blue);
+  border: 1px solid rgba(56,189,248,.3);
+  border-radius: 20px;
+  padding: 2px 9px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .5px;
 }
 
 .pt-logout {

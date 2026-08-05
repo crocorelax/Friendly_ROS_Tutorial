@@ -17,6 +17,9 @@ const Auth = (() => {
   // Cache en mémoire du profil courant (null avant init())
   let _profile = null;
 
+  // true si la session courante est une session invité (locale, pas de compte Supabase)
+  let _isGuest = false;
+
   // ── Helpers internes ─────────────────────────────────────
 
   // Écrit un snapshot du profil dans bipboup_session (pour les gardes inline)
@@ -31,8 +34,18 @@ const Auth = (() => {
       score_fusion:       p.score_fusion       || 0,
       score_dashboard:    p.score_dashboard    || 0,
       progress_low:       p.progress_low       || 1,
+      guest:               !!p.guest,
       loginAt:            Date.now(),
     });
+  }
+
+  // Applique une mutation à la session invité stockée localement
+  // (mode découverte : rien n'est jamais envoyé à Supabase)
+  function _updateGuestSession(mutate) {
+    const s = Storage.getSession();
+    if (!s || !s.guest) return;
+    mutate(s);
+    Storage.setSession(s);
   }
 
   // Charge le profil depuis la table profiles et le met en cache
@@ -55,11 +68,15 @@ const Auth = (() => {
   async function init() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
-      // Invalide le miroir localStorage si Supabase dit "non connecté"
+      // Une session invité locale n'a pas de pendant Supabase : on la conserve.
+      const local = Storage.getSession();
+      if (local && local.guest) { _isGuest = true; _profile = null; return; }
+      // Sinon, invalide le miroir localStorage si Supabase dit "non connecté"
       Storage.clearSession();
       _profile = null;
       return;
     }
+    _isGuest = false;
     const p = await _fetchProfile(session.user.id);
     if (!p) {
       // Compte Supabase sans profil (ex : supprimé par admin)
@@ -124,8 +141,36 @@ const Auth = (() => {
     return login(username, password);
   }
 
+  // Démarre une session invité locale : aucun compte Supabase, aucune écriture
+  // serveur. Toute la progression (vies, scores, niveaux) reste en mémoire
+  // localStorage et disparaît à la déconnexion / fermeture du navigateur.
+  function loginGuest() {
+    _isGuest = true;
+    _profile = null;
+    _writeLocalSession({
+      username:     'invité',
+      role:         'guest',
+      lives:        3,
+      score_low:    0,
+      score_high:   0,
+      score_pathfinding: 0,
+      score_fusion: 0,
+      score_dashboard:   0,
+      progress_low: 1,
+      guest:        true,
+    });
+    return { ok: true };
+  }
+
+  function isGuest() {
+    if (_isGuest) return true;
+    const s = Storage.getSession();
+    return !!(s && s.guest);
+  }
+
   async function logout() {
-    await supabase.auth.signOut();
+    if (!isGuest()) await supabase.auth.signOut();
+    _isGuest = false;
     _profile = null;
     Storage.clearSession();
   }
@@ -191,6 +236,11 @@ const Auth = (() => {
       pathfinding: 'score_pathfinding', fusion: 'score_fusion', dashboard: 'score_dashboard',
     };
     const col = tierToCol[tier];
+    if (isGuest()) {
+      // Mode découverte : score gardé localement, jamais envoyé au serveur
+      if (col) _updateGuestSession(s => { s[col] = Math.max(s[col] || 0, score); });
+      return;
+    }
     if (_profile && col && _profile.username === username.toLowerCase()) {
       if (score <= (_profile[col] || 0)) return; // pas d'amélioration
       // Mise à jour optimiste du cache (callers sync voient la valeur immédiatement)
@@ -207,6 +257,10 @@ const Auth = (() => {
   }
 
   async function loseLive(username) {
+    if (isGuest()) {
+      _updateGuestSession(s => { s.lives = Math.max(0, (s.lives || 0) - 1); });
+      return;
+    }
     if (!_profile || _profile.role === 'admin') return;
     if (_profile.username !== username.toLowerCase()) return;
     // Optimiste
@@ -217,6 +271,10 @@ const Auth = (() => {
   }
 
   async function restoreLives(username, count = 3) {
+    if (isGuest()) {
+      _updateGuestSession(s => { s.lives = count; });
+      return;
+    }
     // Réservé à l'admin (vérifié côté serveur dans fn_admin_restore_lives)
     await supabase.rpc('fn_admin_restore_lives', {
       p_username: username.toLowerCase(),
@@ -230,6 +288,10 @@ const Auth = (() => {
 
   async function unlockLevel(tier, level) {
     const col = `progress_${tier}`;
+    if (isGuest()) {
+      _updateGuestSession(s => { s[col] = Math.max(s[col] || 1, level); });
+      return;
+    }
     const current = _profile ? (_profile[col] || 1) : 1;
     if (level <= current || !_profile) return;
     // Optimiste
@@ -288,7 +350,7 @@ const Auth = (() => {
   }
 
   return {
-    init, login, register, logout,
+    init, login, register, logout, loginGuest, isGuest,
     getSession, getCurrentUser, isAdmin,
     updateScore, loseLive, restoreLives, unlockLevel,
     getLeaderboard, getAllUsers,

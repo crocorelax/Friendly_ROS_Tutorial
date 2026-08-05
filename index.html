@@ -59,6 +59,12 @@
     <button class="btn-primary" onclick="handleRegister()">Créer le compte</button>
     <p class="auth-switch">Déjà inscrit ? <a onclick="showLogin()">Se connecter</a></p>
   </div>
+
+  <!-- Mode découverte -->
+  <div class="auth-guest">
+    <button class="btn-guest" onclick="handleGuestMode()">🔎 Continuer en mode découverte</button>
+    <p class="auth-guest-note">Sans compte, sans sauvegarde — idéal pour essayer</p>
+  </div>
 </div>
 
 <!-- ══════════ MENU PRINCIPAL ══════════ -->
@@ -71,6 +77,7 @@
       <span id="ptLives"  class="lives-badge"></span>
       <span id="ptRole"   class="role-badge"></span>
       <span id="ptScores" class="scores-badge" style="display:none"></span>
+      <span id="ptGuestBadge" class="guest-badge" style="display:none">🔎 Découverte — non sauvegardé</span>
     </div>
     <button class="pt-logout" onclick="handleLogout()">Déconnexion</button>
   </div>

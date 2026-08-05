@@ -119,6 +119,13 @@ async function handleLogout() {
   showLogin();
 }
 
+// ── Mode découverte (invité) ─────────────────────────────
+
+function handleGuestMode() {
+  Auth.loginGuest();
+  showMenu();
+}
+
 // ── Affichage utilisateur ────────────────────────────────
 
 function _renderUserInfo() {
@@ -151,6 +158,9 @@ function _renderUserInfo() {
 
   document.getElementById('adminSection').style.display =
     user.role === 'admin' ? 'flex' : 'none';
+
+  const guestBadge = document.getElementById('ptGuestBadge');
+  if (guestBadge) guestBadge.style.display = Auth.isGuest() ? '' : 'none';
 }
 
 // ── Classement (async) ───────────────────────────────────

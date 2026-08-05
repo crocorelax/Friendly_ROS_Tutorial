@@ -83,6 +83,10 @@ async function _htDeleteScript(id) {
 }
 
 async function saveCurrentScript() {
+  if (Auth.isGuest()) {
+    termLog('[script] Sauvegarde indisponible en mode découverte', 'warn');
+    return;
+  }
   const code = document.getElementById('scriptEditorArea').value.trim();
   if (!code || code === SCRIPT_SYNTAX_HINT.trim()) {
     termLog('[script] Éditeur vide — rien à sauvegarder', 'warn');
