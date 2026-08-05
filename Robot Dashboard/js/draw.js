@@ -99,6 +99,47 @@ function drawLidar() {
   c.fillText(`${ranges.length} pts | max ${maxR}m | topic: /scan`, 8, H - 6);
 }
 
+// ── Camera : vue de face rétro (vecteurs façon vieux jeu) ──
+// Reprend la géométrie réelle de l'arène (ARENA/SIM_WALLS de sim.js) pour
+// rester cohérent avec ce qu'affichent les panneaux LiDAR/Odométrie.
+const CAM_VIEW_DIST = 6;     // portée de vue simulée (m)
+const CAM_WALL_H    = 0.55;  // hauteur "inventée" des murs pour le rendu
+
+const CAM_WALLS = SIM_WALLS.concat([
+  { x: 0, y: -ARENA.hh, w: ARENA.w, h: 0.06 },
+  { x: 0, y:  ARENA.hh, w: ARENA.w, h: 0.06 },
+  { x: -ARENA.hw, y: 0, w: 0.06, h: ARENA.h },
+  { x:  ARENA.hw, y: 0, w: 0.06, h: ARENA.h },
+]);
+
+const CAM_MARKERS = [
+  { x:  1.9, y: -1.3 },
+  { x: -1.9, y:  1.3 },
+  { x:  0.0, y:  1.5 },
+];
+
+// Projette un point du monde dans le repère caméra (avant du robot = cap courant)
+function _camProject(wx, wy, hRad, W, H, horizonY) {
+  const dx = wx - state.odom.x, dy = wy - state.odom.y;
+  const fwd = dx * Math.cos(hRad) + dy * Math.sin(hRad);
+  if (fwd < 0.12) return null; // derrière la caméra ou trop proche
+  const lat = dx * -Math.sin(hRad) + dy * Math.cos(hRad);
+  const t = 1 / (1 + fwd); // 1 = collé à la caméra, →0 à l'horizon
+  return {
+    t, fwd,
+    sx:      W / 2 + lat * W * .6 * t,
+    syFloor: horizonY + (H - horizonY) * t,
+    syTop:   horizonY + (H - horizonY) * t - CAM_WALL_H * (H - horizonY) * 1.4 * t,
+  };
+}
+
+function _camColor(filter, t, alphaBase) {
+  if (filter === 'gray')  return `rgba(210,210,210,${alphaBase + t * .6})`;
+  if (filter === 'depth') return `hsl(${200 - t * 150},85%,60%)`;
+  if (filter === 'edge')  return `rgba(255,255,255,${alphaBase + .2 + t * .6})`;
+  return `rgba(20,255,170,${alphaBase + t * .65})`; // normal — vert phosphore
+}
+
 // ── Camera ────────────────────────────────────────────────
 function drawCamera(dt) {
   const c = camCtx, W = camCanvas.width, H = camCanvas.height;
@@ -122,58 +163,91 @@ function drawCamera(dt) {
     return;
   }
 
-  // Simulation : caméra montée sur le robot, orientée vers le bas — le
-  // robot reste fixe au centre (cap vers le haut) et le décor tourne
-  // autour de lui, comme le ferait une vraie caméra embarquée qui pivote
-  // avec le châssis.
-  const filter = state.camFilter;
-  c.fillStyle = '#1a1208'; c.fillRect(0, 0, W, H);
-  const s = Math.min(W, H) / 6;
-  const ox = W / 2 - state.odom.x * s * 2, oy = H / 2 - state.odom.y * s * 2;
+  // Simulation : vue de face rétro (grille vectorielle façon vieux jeu),
+  // ce que "verrait" une caméra montée à l'avant du robot. Géométrie reprise
+  // de sim.js (ARENA / SIM_WALLS) — cohérente avec le LiDAR et l'odométrie.
+  const filter   = state.camFilter;
+  const hRad     = state.heading * Math.PI / 180;
+  const horizonY = H * .42;
 
-  c.save();
-  c.translate(W / 2, H / 2);
-  c.rotate(-state.heading * Math.PI / 180);
-  c.translate(-W / 2, -H / 2);
+  c.fillStyle = '#050409'; c.fillRect(0, 0, W, H);
 
-  c.fillStyle = '#2d2010'; c.fillRect(ox - 15 * s, oy - 10 * s, 30 * s, 20 * s);
-  if (filter !== 'depth') {
-    c.strokeStyle = 'rgba(80,60,20,.3)'; c.lineWidth = .5;
-    for (let i = -15; i < 15; i++) { c.beginPath(); c.moveTo(ox + i * s, oy - 10 * s); c.lineTo(ox + i * s, oy + 10 * s); c.stroke(); }
-    for (let j = -10; j < 10; j++) { c.beginPath(); c.moveTo(ox - 15 * s, oy + j * s); c.lineTo(ox + 15 * s, oy + j * s); c.stroke(); }
+  // Ciel + lueur au point de fuite
+  const skyGrad = c.createLinearGradient(0, 0, 0, horizonY);
+  skyGrad.addColorStop(0, '#0a0714'); skyGrad.addColorStop(1, '#1a0f2e');
+  c.fillStyle = skyGrad; c.fillRect(0, 0, W, horizonY);
+  const sunGrad = c.createRadialGradient(W / 2, horizonY, 2, W / 2, horizonY, W * .35);
+  sunGrad.addColorStop(0, filter === 'depth' ? 'rgba(34,211,238,.5)' : 'rgba(255,80,180,.35)');
+  sunGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = sunGrad; c.fillRect(0, 0, W, horizonY);
+
+  // Sol
+  c.fillStyle = '#05020a'; c.fillRect(0, horizonY, W, H - horizonY);
+
+  // Grille radiale (lignes de fuite)
+  c.strokeStyle = _camColor(filter, .5, .08); c.lineWidth = 1;
+  const nRad = 12;
+  for (let i = 0; i <= nRad; i++) {
+    const x = (i / nRad) * W;
+    c.beginPath(); c.moveTo(W / 2, horizonY); c.lineTo(x, H); c.stroke();
   }
-  [[-2, -1], [1.5, 0.5], [-1, 1.5], [2.5, -1.5], [0.5, 2]].forEach(([kx, ky], i) => {
-    const px = ox + kx * s, py = oy + ky * s;
-    c.fillStyle = filter === 'gray' ? '#888' : filter === 'depth' ? `hsl(${200 + i * 20},80%,${50 + i * 5}%)` : (i % 2 === 0 ? '#8B5CF6' : '#F59E0B');
-    c.fillRect(px - s * .3, py - s * .08, s * .6, s * .16);
-    c.strokeStyle = 'rgba(0,0,0,.4)'; c.lineWidth = 1; c.strokeRect(px - s * .3, py - s * .08, s * .6, s * .16);
-  });
-  [[3, 1], [-2.5, 2], [2, -2]].forEach(([gx, gy]) => {
-    const px = ox + gx * s, py = oy + gy * s;
-    c.fillStyle = filter === 'gray' ? '#aaa' : filter === 'depth' ? '#22d3ee' : '#22c55e';
-    c.beginPath(); c.arc(px, py, s * .4, 0, Math.PI * 2); c.fill();
-    if (filter !== 'depth') { c.fillStyle = '#16a34a'; c.font = `${s * .5}px sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('🌱', px, py); }
-  });
-  if (filter === 'edge') {
-    c.strokeStyle = 'rgba(0,214,143,.6)'; c.lineWidth = 1.5; c.setLineDash([3, 3]);
-    c.strokeRect(ox - 15 * s, oy - 10 * s, 30 * s, 20 * s);
+  // Grille de profondeur (lignes horizontales qui se resserrent vers l'horizon)
+  for (let d = .4; d <= CAM_VIEW_DIST; d += .45) {
+    const t = 1 / (1 + d);
+    const y = horizonY + (H - horizonY) * t;
+    c.strokeStyle = _camColor(filter, t, .05); c.lineWidth = 1;
+    c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke();
+  }
+  c.strokeStyle = _camColor(filter, 1, .2); c.lineWidth = 1.5;
+  c.beginPath(); c.moveTo(0, horizonY); c.lineTo(W, horizonY); c.stroke();
+
+  // Murs (SIM_WALLS + limites de l'arène) en boîtes filaires
+  CAM_WALLS.forEach(wall => {
+    const hw = wall.w / 2, hh = wall.h / 2;
+    const corners = [
+      [wall.x - hw, wall.y - hh], [wall.x + hw, wall.y - hh],
+      [wall.x + hw, wall.y + hh], [wall.x - hw, wall.y + hh],
+    ].map(([wx, wy]) => _camProject(wx, wy, hRad, W, H, horizonY));
+    if (corners.some(p => !p) || corners.every(p => p.fwd > CAM_VIEW_DIST)) return;
+
+    const col = _camColor(filter, Math.max(...corners.map(p => p.t)), .3);
+    c.strokeStyle = col; c.lineWidth = 1.5;
+    if (filter === 'edge') c.setLineDash([4, 3]);
+
+    c.beginPath();
+    corners.forEach((p, i) => i === 0 ? c.moveTo(p.sx, p.syFloor) : c.lineTo(p.sx, p.syFloor));
+    c.closePath(); c.stroke();
+    c.beginPath();
+    corners.forEach((p, i) => i === 0 ? c.moveTo(p.sx, p.syTop) : c.lineTo(p.sx, p.syTop));
+    c.closePath(); c.stroke();
+    corners.forEach(p => { c.beginPath(); c.moveTo(p.sx, p.syFloor); c.lineTo(p.sx, p.syTop); c.stroke(); });
     c.setLineDash([]);
-  }
-  c.restore();
+  });
 
-  // Robot — toujours fixe au centre, cap vers le haut (c'est le décor qui tourne autour de lui)
-  c.save(); c.translate(W / 2, H / 2);
-  const rb = s * .8;
-  c.fillStyle = filter === 'depth' ? '#60a5fa' : '#1e3a8a';
-  c.strokeStyle = filter === 'depth' ? '#bfdbfe' : '#3b82f6'; c.lineWidth = 2;
-  c.beginPath(); c.roundRect(-rb, -rb, rb * 2, rb * 2, rb * .3); c.fill(); c.stroke();
-  c.fillStyle = filter === 'depth' ? '#fff' : 'rgba(0,214,143,.9)';
-  c.beginPath(); c.arc(0, -rb * .2, rb * .4, 0, Math.PI * 2); c.fill();
-  c.restore();
-  c.fillStyle = 'rgba(0,0,0,.5)'; c.fillRect(0, 0, W, 18);
-  c.fillStyle = 'rgba(0,214,143,.8)'; c.font = '9px JetBrains Mono,monospace'; c.textAlign = 'left'; c.textBaseline = 'middle';
-  c.fillText(`SIM | ${filter.toUpperCase()} | ${new Date().toTimeString().slice(0,8)} | cap: ${state.heading.toFixed(0)}°`, 6, 9);
+  // Balises (points d'intérêt) — pylônes filaires
+  CAM_MARKERS.forEach(m => {
+    const p = _camProject(m.x, m.y, hRad, W, H, horizonY);
+    if (!p || p.fwd > CAM_VIEW_DIST) return;
+    const col = filter === 'gray' ? '#ddd' : filter === 'depth' ? `hsl(${200 - p.t * 150},85%,60%)` : '#2dd881';
+    c.strokeStyle = col; c.lineWidth = 1.5;
+    c.beginPath(); c.moveTo(p.sx, p.syFloor); c.lineTo(p.sx, p.syTop); c.stroke();
+    const r = Math.max(2, 6 * p.t);
+    c.fillStyle = col;
+    c.beginPath();
+    c.moveTo(p.sx, p.syTop - r); c.lineTo(p.sx + r, p.syTop); c.lineTo(p.sx, p.syTop + r); c.lineTo(p.sx - r, p.syTop);
+    c.closePath(); c.fill();
+  });
+
+  // HUD rétro
+  c.fillStyle = 'rgba(0,0,0,.55)'; c.fillRect(0, 0, W, 18);
+  c.fillStyle = _camColor(filter, 1, .3); c.font = '9px JetBrains Mono,monospace'; c.textAlign = 'left'; c.textBaseline = 'middle';
+  c.fillText(`SIM | FPV | ${filter.toUpperCase()} | ${new Date().toTimeString().slice(0,8)} | cap: ${state.heading.toFixed(0)}°`, 6, 9);
+  // Réticule central
+  c.strokeStyle = _camColor(filter, 1, .15); c.lineWidth = 1;
+  c.beginPath(); c.moveTo(W / 2 - 6, H / 2); c.lineTo(W / 2 + 6, H / 2); c.moveTo(W / 2, H / 2 - 6); c.lineTo(W / 2, H / 2 + 6); c.stroke();
+  // Scanlines CRT
   for (let y = 0; y < H; y += 4) { c.fillStyle = 'rgba(0,0,0,.08)'; c.fillRect(0, y, W, 2); }
+
   state.camFrame++;
   document.getElementById('camFps').textContent     = '~30 fps';
   document.getElementById('camLatency').textContent = `${state.sys.latency}ms`;
