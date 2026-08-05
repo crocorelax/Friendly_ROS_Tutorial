@@ -143,13 +143,17 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
 ::-webkit-scrollbar{width:3px}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
 
-/* ── Mode Défi ── */
-.defi-card{border:1.5px solid var(--border2);border-radius:8px;padding:8px 10px;margin-bottom:5px;cursor:pointer;transition:.15s;background:var(--panel2)}
-.defi-card:hover{border-color:var(--yellow);background:rgba(234,179,8,.04)}
-.defi-card.done{border-color:var(--green);background:rgba(0,214,143,.05)}
-.defi-card.active-ch{border-color:var(--orange);background:rgba(249,115,22,.07)}
-.defi-head{display:flex;justify-content:space-between;align-items:center;gap:4px;margin-bottom:3px}
-.defi-name{font-size:11px;font-weight:800;font-family:var(--sans)}
+/* ── Quiz ── */
+.quiz-btn{width:100%;border:1.5px solid var(--border2);border-radius:8px;padding:10px;cursor:pointer;transition:.15s;background:var(--panel2);color:var(--text);font-family:var(--sans);font-weight:800;font-size:12px}
+.quiz-btn:hover{border-color:var(--yellow);background:rgba(234,179,8,.06)}
+.quiz-best{margin-top:6px;padding:8px;background:var(--panel2);border:1px solid var(--border);border-radius:8px;text-align:center}
+.quiz-best-val{font-size:18px;font-weight:900;font-family:var(--mono)}
+.quiz-best-label{font-size:9px;color:var(--muted);letter-spacing:.5px;margin-top:2px}
+.quiz-opt{width:100%;text-align:left;background:var(--panel2);border:1.5px solid var(--border2);border-radius:7px;padding:8px 11px;font-size:12px;font-weight:700;font-family:var(--sans);color:var(--text);cursor:pointer;transition:.12s}
+.quiz-opt:hover:not(:disabled){border-color:var(--blue);color:var(--blue);background:rgba(56,189,248,.06)}
+.quiz-opt:disabled{cursor:not-allowed;opacity:.75}
+.quiz-opt-correct{border-color:var(--green)!important;color:var(--green)!important;background:rgba(0,214,143,.1)!important}
+.quiz-opt-wrong{border-color:var(--red)!important;color:var(--red)!important;background:rgba(239,68,68,.08)!important}
 </style>
 </head>
 <body>
@@ -397,13 +401,13 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
         </div>
       </div>
 
-      <!-- MODE DÉFI -->
+      <!-- QUIZ -->
       <div class="sb-section">
-        <div class="sb-title">🏆 Mode Défi</div>
-        <div id="sfDefiList"><div style="font-size:10px;color:var(--muted);padding:4px 0">Chargement…</div></div>
-        <div id="sfDefiScoreRow" style="display:none;margin-top:6px;padding:8px;background:var(--panel2);border:1px solid var(--border);border-radius:8px;text-align:center">
-          <div style="font-size:18px;font-weight:900;font-family:var(--mono)" id="sfDefiTotalEl">0</div>
-          <div style="font-size:9px;color:var(--muted);letter-spacing:.5px;margin-top:2px">SCORE FUSION</div>
+        <div class="sb-title">🎓 Quiz Fusion de Capteurs</div>
+        <button class="quiz-btn" onclick="quizToggleOpen()">📖 Cours + Quiz — 10 questions</button>
+        <div class="quiz-best">
+          <div class="quiz-best-val" id="quizBestEl" style="color:var(--muted)">—</div>
+          <div class="quiz-best-label">MEILLEUR SCORE</div>
         </div>
       </div>
 
@@ -434,6 +438,29 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
     <div class="bb-sep"></div>
     <div class="bb-item" id="bbMode">Mode: <span>SIM</span></div>
     <div style="margin-left:auto;font-size:10px;color:var(--muted);font-family:var(--mono)">Club BipBoup · 3iL · Coupe de France de Robotique</div>
+  </div>
+</div>
+
+<!-- ── QUIZ ─────────────────────────────── -->
+<div id="quizOverlay" style="display:none;position:fixed;bottom:44px;right:16px;width:330px;z-index:200;font-family:var(--sans)">
+  <div style="background:var(--panel);border:1.5px solid var(--border2);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.6);overflow:hidden">
+    <div style="background:var(--panel2);border-bottom:1px solid var(--border);padding:10px 14px;display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:12px;font-weight:900;color:var(--text)">🎓 Quiz Fusion de Capteurs</span>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:10px;font-family:var(--mono);color:var(--muted)" id="quizProgress">1/10</span>
+        <button onclick="document.getElementById('quizOverlay').style.display='none'" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:14px;line-height:1;padding:0">✕</button>
+      </div>
+    </div>
+    <div style="padding:14px">
+      <div id="quizQ" style="font-size:12px;font-weight:800;color:var(--text);line-height:1.5;margin-bottom:10px">Chargement…</div>
+      <div id="quizOpts" style="display:flex;flex-direction:column;gap:5px"></div>
+      <div id="quizHint" style="display:none;font-size:10px;line-height:1.5;margin-top:8px;padding:6px 8px;border-radius:6px;background:rgba(255,255,255,.04)"></div>
+      <div id="quizFinishMsg" style="display:none;font-size:11px;font-weight:800;color:var(--green);margin-top:8px;text-align:center"></div>
+    </div>
+    <div style="background:var(--bg);border-top:1px solid var(--border);padding:7px 14px;display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:10px;color:var(--muted);font-family:var(--mono)">Score session</span>
+      <span style="font-size:14px;font-weight:900;font-family:var(--mono);color:var(--text)"><span id="quizScoreEl">0</span> / 100 pts</span>
+    </div>
   </div>
 </div>
 
@@ -1337,7 +1364,7 @@ function loop(ts) {
   const dt=Math.min((ts-lastT)/1000, 0.05);
   lastT=ts;
   if(!paused){
-    if(appMode==='sim') { simStep(dt); sfCheckChallenge(); }
+    if(appMode==='sim') { simStep(dt); }
     else if(appMode==='ros') updateTopicHealth();
   }
   drawAll();
@@ -1573,128 +1600,240 @@ function initCanvases() {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// MODE DÉFI — SENSOR FUSION
+// QUIZ — HISTOIRE & FONCTIONNEMENT DE LA FUSION DE CAPTEURS
 // ══════════════════════════════════════════════════════════════════
-const SF_CHALLENGES = [
+const QUIZ_QUESTIONS = [
   {
-    id: 1, name: 'Maîtrise optimale', icon: '🎯',
-    scenario: 'normal', duration: 20,
-    desc: 'Maintiens la RMSE Fusion sous 5 cm pendant 20 s. Ajuste les capteurs pour minimiser l\'erreur.',
-    score: (avgCm) => Math.max(0, Math.min(100, Math.round(100 - avgCm * 4))),
+    q: 'Qui a inventé le filtre de Kalman, et quand ?',
+    opts: [
+      'Rudolf Kálmán, en 1960',
+      'Norbert Wiener, en 1948',
+      'Claude Shannon, en 1952',
+      'Alan Turing, en 1945',
+    ],
+    correct: 0,
+    hint: 'Publié dans "A New Approach to Linear Filtering and Prediction Problems" — un des articles les plus cités de l\'ingénierie.',
   },
   {
-    id: 2, name: 'Sol glissant', icon: '💦',
-    scenario: 'slip', duration: 25,
-    desc: 'Scénario "glissant" chargé ! Configure les capteurs pour compenser la dérive odométrique.',
-    score: (avgCm) => Math.max(0, Math.min(100, Math.round(100 - avgCm * 3))),
+    q: 'Le filtre de Kalman a été utilisé de façon célèbre dans quel programme ?',
+    opts: [
+      'Le programme Apollo, pour le guidage vers la Lune',
+      'Le programme Manhattan, pour les calculs balistiques',
+      'ARPANET, pour le routage des paquets',
+      'Le programme Voyager, pour la photographie',
+    ],
+    correct: 0,
+    hint: 'L\'ordinateur de guidage Apollo l\'utilisait pour fusionner les mesures de navigation en temps réel, avec très peu de puissance de calcul.',
   },
   {
-    id: 3, name: 'Reconquête kidnap', icon: '🫳',
-    scenario: 'normal', duration: 30,
-    desc: 'Un kidnap surviendra à t=10 s de simulation ! Le LiDAR actif est la clé de la relocalisation.',
-    score: (avgCm) => Math.max(0, Math.min(100, Math.round(100 - avgCm * 2))),
-    kidnap: true, // auto-kidnap à t=10s
+    q: 'Que représente le "Gain K" dans le filtre de Kalman ?',
+    opts: [
+      'À quel point on fait confiance à la nouvelle mesure plutôt qu\'à la prédiction',
+      'La vitesse de rafraîchissement du capteur en Hz',
+      'Le nombre de capteurs actifs dans la fusion',
+      'La distance parcourue depuis le dernier recalage',
+    ],
+    correct: 0,
+    hint: 'K = P/(P+R) : plus l\'incertitude de la mesure (R) est faible, plus K est grand et plus on fait confiance à la mesure.',
+  },
+  {
+    q: 'Pourquoi l\'odométrie seule dérive-t-elle en spirale ?',
+    opts: [
+      'Elle intègre en continu ses erreurs angulaires, qui s\'accumulent sans jamais être corrigées',
+      'Les roues du robot ralentissent avec le temps',
+      'Elle recalcule sa position au hasard toutes les 10 secondes',
+      'Elle ne peut mesurer que la vitesse, jamais la position',
+    ],
+    correct: 0,
+    hint: 'Une petite erreur d\'angle, jamais corrigée, dévie progressivement toute la trajectoire estimée — d\'où la spirale caractéristique.',
+  },
+  {
+    q: 'Quel capteur permet de corriger la direction et d\'éviter la spirale de dérive ?',
+    opts: [
+      'L\'IMU (gyroscope)',
+      'Le microphone',
+      'La caméra seule, sans traitement',
+      'Le capteur de batterie',
+    ],
+    correct: 0,
+    hint: 'L\'IMU mesure directement la vitesse angulaire — il corrige le cap à chaque pas, avant même que l\'erreur ne s\'accumule.',
+  },
+  {
+    q: 'Quel est l\'avantage du LiDAR par rapport à l\'odométrie pure ?',
+    opts: [
+      'Il ancre la position sur la carte, sans dérive cumulative dans le temps',
+      'Il consomme moins d\'énergie que l\'odométrie',
+      'Il fonctionne même robot éteint',
+      'Il remplace complètement le besoin de calcul embarqué',
+    ],
+    correct: 0,
+    hint: 'Le LiDAR "voit" son environnement à chaque scan — son erreur ne s\'accumule jamais dans le temps, contrairement à l\'odométrie.',
+  },
+  {
+    q: 'Qu\'est-ce qu\'un "kidnapping" en robotique, et comment le robot s\'en remet-il ?',
+    opts: [
+      'Une téléportation soudaine du robot ; le LiDAR reconnaît l\'environnement et relocalise en quelques centaines de ms',
+      'Une panne totale des capteurs qui force un redémarrage manuel',
+      'Un vol physique du robot par un tiers, détecté par GPS',
+      'Une erreur de code qui bloque le robot indéfiniment',
+    ],
+    correct: 0,
+    hint: 'Le "problème du robot kidnappé" est un cas d\'école en robotique : le robot doit se relocaliser sans savoir qu\'il a été déplacé.',
+  },
+  {
+    q: 'D\'où vient le mot "LiDAR" ?',
+    opts: [
+      'Contraction de "Light" et "Radar" — développé dès les années 1960',
+      'Un acronyme inventé pour le programme Apollo',
+      'Du nom de son inventeur, le Dr. Lidar',
+      'De "Linear Data Radar", un terme militaire des années 1990',
+    ],
+    correct: 0,
+    hint: 'Le LiDAR a d\'abord servi à l\'étude de l\'atmosphère, avant d\'être largement adopté en robotique via le SLAM.',
+  },
+  {
+    q: 'Que montre l\'ellipse de covariance affichée sur la carte ?',
+    opts: [
+      'L\'incertitude actuelle sur la position estimée par le filtre',
+      'La zone que le LiDAR peut scanner physiquement',
+      'La trajectoire complète parcourue depuis le départ',
+      'Le rayon de sécurité pour éviter les collisions',
+    ],
+    correct: 0,
+    hint: 'Plus l\'ellipse est petite, plus le filtre est confiant dans sa position estimée. Elle grossit sans LiDAR, elle se réduit avec.',
+  },
+  {
+    q: 'Pourquoi combiner plusieurs capteurs (fusion) plutôt qu\'en utiliser un seul ?',
+    opts: [
+      'Chaque capteur a des forces et faiblesses complémentaires, qui se compensent une fois combinées',
+      'C\'est obligatoire pour respecter les normes ROS',
+      'Un seul capteur ne peut jamais mesurer une position 2D',
+      'Cela réduit toujours la consommation électrique du robot',
+    ],
+    correct: 0,
+    hint: 'L\'IMU corrige le cap, l\'odométrie interpole entre deux scans, le LiDAR ancre sur la carte — ensemble, ils compensent leurs défauts respectifs.',
   },
 ];
 
-let sfActiveChallenge  = null;
-let sfChallengeStartT  = 0;   // simTime au lancement
-let sfChallengeEhStart = 0;   // index EH au lancement (après reset)
-let sfChallengeScores  = { 1: null, 2: null, 3: null };
-let sfBestDbScore      = 0;
-let sfKidnapFired      = false;
-let sfLastPanelUpdate  = -1;
+const quizState = {
+  started:    false,
+  idx:        0,
+  score:      0,
+  answered:   false,
+  bestDb:     0,
+  completed:  false,
+  order:      [],
+  correctPos: -1,
+};
 
-function sfRenderDefiPanel() {
-  const html = SF_CHALLENGES.map(c => {
-    const sc       = sfChallengeScores[c.id];
-    const done     = sc !== null;
-    const isActive = sfActiveChallenge?.id === c.id;
-    const elapsed  = isActive ? Math.max(0, Math.floor(simTime - sfChallengeStartT)) : 0;
-    const remaining = isActive ? Math.max(0, c.duration - elapsed) : 0;
-    return `<div class="defi-card${done ? ' done' : ''}${isActive ? ' active-ch' : ''}" onclick="sfLaunchChallenge(${c.id})">
-      <div class="defi-head">
-        <span class="defi-name">${isActive ? '🟠' : done ? '✅' : '⬜'} ${c.icon} ${c.name}</span>
-        <span style="font-size:10px;font-family:var(--mono);color:${done ? 'var(--green)' : isActive ? 'var(--yellow)' : 'var(--muted)'}">${done ? sc+'pts' : isActive ? remaining+'s' : '100pts'}</span>
-      </div>
-      <div style="font-size:9px;color:var(--muted);line-height:1.4">${c.desc}</div>
-    </div>`;
-  }).join('');
-  document.getElementById('sfDefiList').innerHTML = html;
-  const total = Object.values(sfChallengeScores).reduce((s,v) => s+(v||0), 0);
-  document.getElementById('sfDefiScoreRow').style.display = '';
-  const el = document.getElementById('sfDefiTotalEl');
-  el.textContent = total + ' / 300 pts';
-  el.style.color = total >= 200 ? 'var(--green)' : total >= 100 ? 'var(--yellow)' : 'var(--muted)';
+function quizShowQuestion() {
+  if (quizState.idx >= QUIZ_QUESTIONS.length) { quizFinish(); return; }
+  const q = QUIZ_QUESTIONS[quizState.idx];
+  quizState.answered = false;
+
+  const order = q.opts.map((_, i) => i);
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  quizState.order      = order;
+  quizState.correctPos = order.indexOf(q.correct);
+
+  document.getElementById('quizOverlay').style.display = '';
+  document.getElementById('quizProgress').textContent = `${quizState.idx + 1} / ${QUIZ_QUESTIONS.length}`;
+  document.getElementById('quizQ').textContent = q.q;
+  document.getElementById('quizHint').style.display = 'none';
+  document.getElementById('quizHint').textContent = '';
+
+  const optsEl = document.getElementById('quizOpts');
+  optsEl.innerHTML = order.map((origIdx, pos) =>
+    `<button class="quiz-opt" onclick="quizAnswer(${pos})">${q.opts[origIdx]}</button>`
+  ).join('');
+
+  document.getElementById('quizScoreEl').textContent = quizState.score;
 }
 
-function sfLaunchChallenge(id) {
-  const c = SF_CHALLENGES.find(x => x.id === id);
-  if (!c) return;
-  sfActiveChallenge = c;
-  sfKidnapFired     = false;
-  setScenario(c.scenario);            // reset EH + simTime d'abord
-  sfChallengeEhStart = EH.t.length;  // = 0 après le reset
-  sfChallengeStartT  = simTime;      // = 0 après resetSim()
-  sfLastPanelUpdate  = -1;
-  if (paused) togglePause();
-  document.getElementById('chip').textContent = `🏆 Défi "${c.name}" — ${c.duration}s`;
-  document.getElementById('chip').className = 'chip warn';
-  sfRenderDefiPanel();
+function quizAnswer(pos) {
+  if (quizState.answered) return;
+  quizState.answered = true;
+
+  const q       = QUIZ_QUESTIONS[quizState.idx];
+  const correct = pos === quizState.correctPos;
+  if (correct) quizState.score += 10;
+
+  const btns = document.querySelectorAll('#quizOpts .quiz-opt');
+  btns.forEach((b, i) => {
+    b.disabled = true;
+    if (i === quizState.correctPos) b.classList.add('quiz-opt-correct');
+    else if (i === pos && !correct) b.classList.add('quiz-opt-wrong');
+  });
+
+  const hintEl = document.getElementById('quizHint');
+  hintEl.textContent = (correct ? '✅ ' : '❌ ') + q.hint;
+  hintEl.style.display = '';
+  hintEl.style.color   = correct ? 'var(--green)' : 'var(--red)';
+
+  document.getElementById('quizScoreEl').textContent = quizState.score;
+
+  quizState.idx++;
+  setTimeout(quizShowQuestion, 3800);
 }
 
-function sfCheckChallenge() {
-  if (!sfActiveChallenge) return;
-  const c       = sfActiveChallenge;
-  const elapsed = simTime - sfChallengeStartT;
+let _quizCloseTimer = null;
 
-  // Auto-kidnap pour le défi 3
-  if (c.kidnap && !sfKidnapFired && elapsed >= 10) {
-    sfKidnapFired = true;
-    triggerKidnap();
+function quizToggleOpen() {
+  const overlay = document.getElementById('quizOverlay');
+  const hidden  = overlay.style.display === 'none';
+
+  if (!hidden) { overlay.style.display = 'none'; return; }
+
+  clearTimeout(_quizCloseTimer);
+  if (quizState.completed) {
+    quizState.idx       = 0;
+    quizState.score     = 0;
+    quizState.completed = false;
+    document.getElementById('quizFinishMsg').style.display = 'none';
+  }
+  quizState.started = true;
+  quizShowQuestion();
+}
+
+async function quizFinish() {
+  quizState.completed = true;
+  document.getElementById('quizQ').textContent = '🎉 Quiz terminé !';
+  document.getElementById('quizOpts').innerHTML = '';
+  document.getElementById('quizHint').style.display = 'none';
+  document.getElementById('quizProgress').textContent = 'Terminé';
+
+  const total = quizState.score;
+  document.getElementById('quizScoreEl').textContent = total;
+
+  const msg = document.getElementById('quizFinishMsg');
+  msg.style.display = '';
+  msg.textContent = total === 100 ? '🏆 Score parfait — expert fusion de capteurs !'
+    : total >= 60 ? `💪 ${total}/100 pts — bon travail !`
+    : `📚 ${total}/100 pts — relis le panneau "Fusion de capteurs" !`;
+
+  if (total > quizState.bestDb) {
+    quizState.bestDb = total;
+    quizUpdateBestEl();
+    try {
+      const user = Auth.getCurrentUser();
+      if (user) await Auth.updateScore(user.username, 'fusion', total);
+    } catch (e) { /* silencieux */ }
   }
 
-  // Mise à jour compte à rebours chip + panel (1/s)
-  const remaining = Math.max(0, Math.ceil(c.duration - elapsed));
-  document.getElementById('chip').textContent = `🏆 Défi "${c.name}" — ${remaining}s`;
-  if (simTime - sfLastPanelUpdate >= 1) {
-    sfLastPanelUpdate = Math.floor(simTime);
-    sfRenderDefiPanel();
-  }
+  clearTimeout(_quizCloseTimer);
+  _quizCloseTimer = setTimeout(() => {
+    document.getElementById('quizOverlay').style.display = 'none';
+  }, 6000);
+}
 
-  if (elapsed < c.duration) return;
-
-  // ── Fin de défi : calcul du score ──
-  sfActiveChallenge = null;
-
-  const samples = EH.fusion.slice(sfChallengeEhStart);
-  const validSamples = samples.filter(v => isFinite(v));
-  const avgRmse = validSamples.length > 0
-    ? validSamples.reduce((s,v) => s+v, 0) / validSamples.length
-    : 0.5;
-  const avgRmseCm = avgRmse * 100;
-
-  const pts  = c.score(avgRmseCm);
-  const prev = sfChallengeScores[c.id] || 0;
-  if (pts > prev) sfChallengeScores[c.id] = pts;
-
-  const total = Object.values(sfChallengeScores).reduce((s,v) => s+(v||0), 0);
-  if (total > sfBestDbScore) {
-    sfBestDbScore = total;
-    const user = Auth.getCurrentUser();
-    if (user) Auth.updateScore(user.username, 'fusion', total).catch(() => {});
-  }
-
-  const won = pts >= 70;
-  document.getElementById('chip').textContent =
-    `${won ? '✅' : '📊'} Défi terminé: ${pts}/100 pts (RMSE moy. ${avgRmseCm.toFixed(1)} cm)`;
-  document.getElementById('chip').className = 'chip ' + (won ? 'ok' : '');
-
-  // showNotif n'existe pas dans sensor_fusion — on fait un chip + bottombar
-  const bb = document.getElementById('bbFusionErr');
-  if (bb) bb.style.color = won ? 'var(--green)' : 'var(--yellow)';
-
-  sfRenderDefiPanel();
+function quizUpdateBestEl() {
+  const el = document.getElementById('quizBestEl');
+  if (!el) return;
+  el.textContent = quizState.bestDb + ' / 100 pts';
+  el.style.color = quizState.bestDb >= 80 ? 'var(--green)' : quizState.bestDb >= 40 ? 'var(--yellow)' : 'var(--muted)';
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -1708,9 +1847,9 @@ window.addEventListener('load',()=>{
   requestAnimationFrame(loop);
   Auth.init().then(() => {
     const user = Auth.getCurrentUser();
-    if (user) sfBestDbScore = user.scores.fusion || 0;
-    sfRenderDefiPanel();
-  }).catch(() => sfRenderDefiPanel());
+    if (user) quizState.bestDb = user.scores.fusion || 0;
+    quizUpdateBestEl();
+  }).catch(() => {});
 });
 </script>
 </body>

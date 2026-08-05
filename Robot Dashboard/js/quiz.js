@@ -15,12 +15,12 @@ const QUIZ_QUESTIONS = [
   {
     q: 'Pourquoi le LiDAR corrige-t-il la dérive odométrique ?',
     opts: [
-      'Il mesure la vitesse du robot',
-      'Il ancre la position sur la carte (pas de drift)',
-      'Il contrôle les moteurs',
-      'Il mesure la tension batterie',
+      'Il recale la position sur la carte, sans dérive',
+      'Il amplifie la puissance envoyée aux moteurs',
+      'Il calcule la vitesse angulaire des roues',
+      'Il surveille la tension de la batterie LiPo',
     ],
-    correct: 1,
+    correct: 0,
     hint: 'L\'odom intègre des erreurs → drift cumulatif. Le LiDAR se "voit" dans la carte sans jamais dériver.',
   },
   {
@@ -32,34 +32,36 @@ const QUIZ_QUESTIONS = [
   {
     q: 'rosbridge WebSocket permet de…',
     opts: [
-      'Flasher le firmware du robot',
       'Accéder aux topics ROS depuis un navigateur',
-      'Calibrer les capteurs à distance',
-      'Contrôler la batterie LiPo',
+      'Reprogrammer le firmware du robot à distance',
+      'Recalibrer les capteurs embarqués du robot',
+      'Superviser la charge de la batterie LiPo',
     ],
-    correct: 1,
+    correct: 0,
     hint: 'rosbridge traduit les topics ROS en JSON sur WebSocket — c\'est ce qui fait tourner ce dashboard !',
   },
   {
     q: 'Le topic /tf gère…',
     opts: [
-      'Les images de la caméra',
-      'La vitesse de translation',
-      'Les transformations entre repères (map→odom→base)',
-      'Les topics filtrés par fréquence',
+      'Les transformations entre les repères (frames)',
+      'Les images capturées par la caméra embarquée',
+      'La vitesse de translation mesurée par les roues',
+      'Les topics filtrés selon leur fréquence d\'émission',
     ],
-    correct: 2,
+    correct: 0,
     hint: '/tf diffuse en continu les matrices de transformation entre tous les repères — indispensable pour la navigation.',
   },
 ];
 
 const quizState = {
-  started:   false,
-  idx:       0,
-  score:     0,
-  answered:  false,
-  bestDb:    0,
-  completed: false,
+  started:    false,
+  idx:        0,
+  score:      0,
+  answered:   false,
+  bestDb:     0,
+  completed:  false,
+  order:      [],  // position affichée → indice original dans q.opts
+  correctPos: -1,  // position affichée de la bonne réponse
 };
 
 // ── Démarre le quiz après 10 s de simulation ──────────────────
@@ -86,6 +88,16 @@ function quizShowQuestion() {
   const q = QUIZ_QUESTIONS[quizState.idx];
   quizState.answered = false;
 
+  // Mélange l'ordre d'affichage à chaque fois — la position (et donc la
+  // longueur de la 1ère/dernière option) ne trahit plus la bonne réponse.
+  const order = q.opts.map((_, i) => i);
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  quizState.order      = order;
+  quizState.correctPos = order.indexOf(q.correct);
+
   document.getElementById('quizOverlay').style.display = '';
   document.getElementById('quizProgress').textContent =
     `${quizState.idx + 1} / ${QUIZ_QUESTIONS.length}`;
@@ -94,8 +106,8 @@ function quizShowQuestion() {
   document.getElementById('quizHint').textContent = '';
 
   const optsEl = document.getElementById('quizOpts');
-  optsEl.innerHTML = q.opts.map((o, i) =>
-    `<button class="quiz-opt" onclick="quizAnswer(${i})">${o}</button>`
+  optsEl.innerHTML = order.map((origIdx, pos) =>
+    `<button class="quiz-opt" onclick="quizAnswer(${pos})">${q.opts[origIdx]}</button>`
   ).join('');
 
   document.getElementById('quizScoreBar').style.display = '';
@@ -103,20 +115,20 @@ function quizShowQuestion() {
 }
 
 // ── Traitement de la réponse ─────────────────────────────────
-function quizAnswer(idx) {
+function quizAnswer(pos) {
   if (quizState.answered) return;
   quizState.answered = true;
 
   const q       = QUIZ_QUESTIONS[quizState.idx];
-  const correct = idx === q.correct;
+  const correct = pos === quizState.correctPos;
   if (correct) quizState.score += 20;
 
   // Colorise les boutons
   const btns = document.querySelectorAll('.quiz-opt');
   btns.forEach((b, i) => {
     b.disabled = true;
-    if (i === q.correct) b.classList.add('quiz-opt-correct');
-    else if (i === idx && !correct) b.classList.add('quiz-opt-wrong');
+    if (i === quizState.correctPos) b.classList.add('quiz-opt-correct');
+    else if (i === pos && !correct) b.classList.add('quiz-opt-wrong');
   });
 
   // Affiche l'explication

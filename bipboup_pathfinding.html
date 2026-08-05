@@ -134,13 +134,17 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
 /* animations */
 @keyframes pop{0%{transform:scale(.8);opacity:0}60%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
 
-/* ── Mode Défi ── */
-.defi-card{border:1.5px solid var(--border2);border-radius:8px;padding:8px 10px;margin-bottom:5px;cursor:pointer;transition:.15s;background:var(--panel2)}
-.defi-card:hover{border-color:var(--yellow);background:rgba(234,179,8,.04)}
-.defi-card.done{border-color:var(--green);background:rgba(0,214,143,.05)}
-.defi-card.active-ch{border-color:var(--orange);background:rgba(249,115,22,.07)}
-.defi-head{display:flex;justify-content:space-between;align-items:center;gap:4px;margin-bottom:3px}
-.defi-name{font-size:11px;font-weight:800;font-family:var(--sans)}
+/* ── Quiz ── */
+.quiz-btn{width:100%;border:1.5px solid var(--border2);border-radius:8px;padding:10px;cursor:pointer;transition:.15s;background:var(--panel2);color:var(--text);font-family:var(--sans);font-weight:800;font-size:12px}
+.quiz-btn:hover{border-color:var(--yellow);background:rgba(234,179,8,.06)}
+.quiz-best{margin-top:6px;padding:8px;background:var(--panel2);border:1px solid var(--border);border-radius:8px;text-align:center}
+.quiz-best-val{font-size:18px;font-weight:900;font-family:var(--mono)}
+.quiz-best-label{font-size:9px;color:var(--muted);letter-spacing:.5px;margin-top:2px}
+.quiz-opt{width:100%;text-align:left;background:var(--panel2);border:1.5px solid var(--border2);border-radius:7px;padding:8px 11px;font-size:12px;font-weight:700;font-family:var(--sans);color:var(--text);cursor:pointer;transition:.12s}
+.quiz-opt:hover:not(:disabled){border-color:var(--blue);color:var(--blue);background:rgba(56,189,248,.06)}
+.quiz-opt:disabled{cursor:not-allowed;opacity:.75}
+.quiz-opt-correct{border-color:var(--green)!important;color:var(--green)!important;background:rgba(0,214,143,.1)!important}
+.quiz-opt-wrong{border-color:var(--red)!important;color:var(--red)!important;background:rgba(239,68,68,.08)!important}
 </style>
 </head>
 <body>
@@ -247,13 +251,13 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
       </div>
     </div>
 
-    <!-- MODE DÉFI -->
+    <!-- QUIZ -->
     <div class="sb-section">
-      <div class="sb-title">🏆 Mode Défi</div>
-      <div id="defiList"><div style="font-size:10px;color:var(--muted);padding:4px 0">Chargement…</div></div>
-      <div id="defiScoreRow" style="display:none;margin-top:6px;padding:8px;background:var(--panel2);border:1px solid var(--border);border-radius:8px;text-align:center">
-        <div style="font-size:18px;font-weight:900;font-family:var(--mono)" id="defiTotalEl">0</div>
-        <div style="font-size:9px;color:var(--muted);letter-spacing:.5px;margin-top:2px">SCORE PATHFINDING</div>
+      <div class="sb-title">🎓 Quiz Pathfinding</div>
+      <button class="quiz-btn" onclick="quizToggleOpen()">📖 Cours + Quiz — 10 questions</button>
+      <div class="quiz-best">
+        <div class="quiz-best-val" id="quizBestEl" style="color:var(--muted)">—</div>
+        <div class="quiz-best-label">MEILLEUR SCORE</div>
       </div>
     </div>
 
@@ -304,6 +308,29 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;heigh
 </div>
 
 <div class="notif" id="notif"></div>
+
+<!-- ── QUIZ ─────────────────────────────── -->
+<div id="quizOverlay" style="display:none;position:fixed;bottom:44px;right:16px;width:330px;z-index:200;font-family:var(--sans)">
+  <div style="background:var(--panel);border:1.5px solid var(--border2);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.6);overflow:hidden">
+    <div style="background:var(--panel2);border-bottom:1px solid var(--border);padding:10px 14px;display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:12px;font-weight:900;color:var(--text)">🎓 Quiz Pathfinding</span>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:10px;font-family:var(--mono);color:var(--muted)" id="quizProgress">1/10</span>
+        <button onclick="document.getElementById('quizOverlay').style.display='none'" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:14px;line-height:1;padding:0">✕</button>
+      </div>
+    </div>
+    <div style="padding:14px">
+      <div id="quizQ" style="font-size:12px;font-weight:800;color:var(--text);line-height:1.5;margin-bottom:10px">Chargement…</div>
+      <div id="quizOpts" style="display:flex;flex-direction:column;gap:5px"></div>
+      <div id="quizHint" style="display:none;font-size:10px;line-height:1.5;margin-top:8px;padding:6px 8px;border-radius:6px;background:rgba(255,255,255,.04)"></div>
+      <div id="quizFinishMsg" style="display:none;font-size:11px;font-weight:800;color:var(--green);margin-top:8px;text-align:center"></div>
+    </div>
+    <div style="background:var(--bg);border-top:1px solid var(--border);padding:7px 14px;display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:10px;color:var(--muted);font-family:var(--mono)">Score session</span>
+      <span style="font-size:14px;font-weight:900;font-family:var(--mono);color:var(--text)"><span id="quizScoreEl">0</span> / 100 pts</span>
+    </div>
+  </div>
+</div>
 
 <script>
 // ══════════════════════════════════════════════
@@ -720,14 +747,8 @@ function onFound() {
   document.getElementById('scEff').textContent = eff + '%';
   stopAlgo();
   updateExpl('found');
-
-  // ── Mode Défi ──
-  if (activeChallenge) {
-    _scoreChallengeOnFound(); // affiche sa propre notif + chip
-  } else {
-    setChip(`✅ Chemin trouvé ! ${pathCells.length} cases · ${exploredCount} explorés`, 'done');
-    showNotif(`🎉 Chemin trouvé en ${elapsed}ms !`, 'green');
-  }
+  setChip(`✅ Chemin trouvé ! ${pathCells.length} cases · ${exploredCount} explorés`, 'done');
+  showNotif(`🎉 Chemin trouvé en ${elapsed}ms !`, 'green');
 }
 
 function onNoPath() {
@@ -1011,102 +1032,241 @@ function showNotif(txt, type) {
 }
 
 // ══════════════════════════════════════════════
-// MODE DÉFI — PATHFINDING
+// QUIZ — HISTOIRE & FONCTIONNEMENT DES ALGOS
+// Questions basées sur le contenu du panneau "Comment ça marche ?" (EXPLS)
 // ══════════════════════════════════════════════
-const CHALLENGES = [
+const QUIZ_QUESTIONS = [
   {
-    id: 1, name: 'Labyrinthe A★', icon: '🌀',
-    preset: 'maze', algoReq: 'astar', maxPts: 100, effMult: 1.5,
-    desc: 'Résous le labyrinthe avec A★. Son heuristique guide directement vers l\'arrivée.',
+    q: 'Quelle formule utilise A★ pour choisir la prochaine case à explorer ?',
+    opts: [
+      'f(n) = g(n) + h(n) — coût réel + estimation restante',
+      'f(n) = h(n) × 2 — le double de l\'estimation',
+      'f(n) = g(n) seulement — le coût déjà parcouru',
+      'f(n) = distance à vol d\'oiseau uniquement',
+    ],
+    correct: 0,
+    hint: 'g = coût réel depuis le départ, h = heuristique (estimation restante). Leur somme guide A★.',
   },
   {
-    id: 2, name: 'Couloir Dijkstra', icon: '🚪',
-    preset: 'corridor', algoReq: 'dijkstra', maxPts: 100, effMult: 2.5,
-    desc: 'Traverse le couloir en Dijkstra. Il explore plus mais garantit le chemin optimal.',
+    q: 'Qui a inventé A★, et où ?',
+    opts: [
+      'Hart, Nilsson et Raphael, au Stanford Research Institute en 1968',
+      'Edsger Dijkstra, dans un café d\'Amsterdam en 1956',
+      'Alan Turing, à Cambridge pendant la 2nde Guerre mondiale',
+      'Donald Knuth, à Stanford dans les années 1970',
+    ],
+    correct: 0,
+    hint: 'Publié en 1968 dans IEEE Transactions on Systems Science and Cybernetics — base des systèmes de navigation modernes.',
   },
   {
-    id: 3, name: 'Arène BFS', icon: '🤖',
-    preset: 'arena', algoReq: 'bfs', maxPts: 100, effMult: 3.0,
-    desc: 'Explore l\'arène avec BFS. Il garantit le plus court chemin en nombre de cases.',
+    q: 'Comment Dijkstra explore-t-il l\'espace, comparé à A★ ?',
+    opts: [
+      'Dans toutes les directions à la fois, en expansion radiale',
+      'Uniquement en ligne droite vers l\'arrivée',
+      'En sautant une case sur deux pour aller plus vite',
+      'De la même façon qu\'A★, mais deux fois plus lentement',
+    ],
+    correct: 0,
+    hint: 'Sans heuristique pour se diriger, Dijkstra explore par coût croissant "en vague" autour du départ.',
+  },
+  {
+    q: 'Dans quelles circonstances Dijkstra a-t-il conçu son algorithme ?',
+    opts: [
+      'En 20 minutes, sans papier ni crayon, dans un café d\'Amsterdam en 1956',
+      'Après 3 ans de recherche à l\'université d\'Oxford',
+      'En collaboration avec Alan Turing pendant la guerre',
+      'Sur un tableau noir au MIT en 1965',
+    ],
+    correct: 0,
+    hint: 'Publié en 1959, c\'est l\'un des algorithmes les plus influents de toute l\'informatique.',
+  },
+  {
+    q: 'Quelle structure de données BFS utilise-t-il pour explorer ?',
+    opts: [
+      'Une file d\'attente (FIFO) — premier arrivé, premier exploré',
+      'Une pile (LIFO) — dernier arrivé, premier exploré',
+      'Un tas binaire trié par distance',
+      'Un tableau trié aléatoirement à chaque étape',
+    ],
+    correct: 0,
+    hint: 'FIFO = First In, First Out. C\'est ce qui donne à BFS son exploration "couche par couche".',
+  },
+  {
+    q: 'Que garantit BFS sur le chemin trouvé ?',
+    opts: [
+      'Le plus court chemin en nombre de cases',
+      'Le chemin le moins coûteux en énergie',
+      'Le chemin le plus rapide à calculer, sans autre garantie',
+      'Un chemin qui évite tous les virages',
+    ],
+    correct: 0,
+    hint: 'BFS explore couche par couche depuis le départ — la première fois qu\'il atteint l\'arrivée, c\'est via le chemin le plus court en nombre de pas.',
+  },
+  {
+    q: 'Quelle structure de données DFS utilise-t-il, et que permet-elle ?',
+    opts: [
+      'Une pile (LIFO), qui permet de s\'enfoncer dans une direction avant de backtracker',
+      'Une file (FIFO), comme BFS mais en sens inverse',
+      'Une table de hachage pour retenir les cases visitées',
+      'Aucune — DFS explore au hasard sans mémoire',
+    ],
+    correct: 0,
+    hint: 'LIFO = Last In, First Out. DFS s\'enfonce à fond dans une branche avant de revenir en arrière.',
+  },
+  {
+    q: 'DFS garantit-il le chemin le plus court ?',
+    opts: [
+      'Non — il peut trouver un chemin très long, juste "un" chemin',
+      'Oui, toujours, comme BFS',
+      'Oui, mais seulement sur les cartes sans murs',
+      'Non — il ne trouve jamais de chemin du tout',
+    ],
+    correct: 0,
+    hint: 'C\'est pourquoi les robots comme BipBoup n\'utilisent pas DFS pour naviguer : le chemin trouvé peut être très inefficace.',
+  },
+  {
+    q: 'Pourquoi A★ explore-t-il généralement moins de cases que Dijkstra ?',
+    opts: [
+      'Grâce à son heuristique, qui le guide directement vers l\'arrivée',
+      'Parce qu\'il ignore la moitié des murs de la carte',
+      'Parce qu\'il explore deux fois plus vite en calcul brut',
+      'Il n\'explore pas moins — c\'est un mythe courant',
+    ],
+    correct: 0,
+    hint: 'Dijkstra n\'a aucune idée d\'où se trouve l\'arrivée ; A★ oriente sa recherche grâce à h(n).',
+  },
+  {
+    q: 'Quel algorithme utilise BipBoup pour naviguer, et pourquoi ?',
+    opts: [
+      'A★ — il est rapide et garantit toujours le chemin le plus court',
+      'DFS — il est le plus simple à implémenter',
+      'BFS — il consomme le moins de mémoire',
+      'Dijkstra — il ne nécessite aucune carte préalable',
+    ],
+    correct: 0,
+    hint: 'A★ combine rapidité (grâce à l\'heuristique) et garantie d\'optimalité — l\'équilibre parfait pour un robot embarqué.',
   },
 ];
 
-let activeChallenge = null;
-let challengeScores  = { 1: null, 2: null, 3: null };
-let bestDbPathScore  = 0;
+const quizState = {
+  started:    false,
+  idx:        0,
+  score:      0,
+  answered:   false,
+  bestDb:     0,
+  completed:  false,
+  order:      [],
+  correctPos: -1,
+};
 
-function renderDefiPanel() {
-  const html = CHALLENGES.map(c => {
-    const sc       = challengeScores[c.id];
-    const done     = sc !== null;
-    const isActive = activeChallenge?.id === c.id;
-    return `<div class="defi-card${done ? ' done' : ''}${isActive ? ' active-ch' : ''}" onclick="launchChallenge(${c.id})">
-      <div class="defi-head">
-        <span class="defi-name">${isActive ? '🟠' : done ? '✅' : '⬜'} ${c.icon} ${c.name}</span>
-        <span style="font-size:10px;font-family:var(--mono);color:${done ? 'var(--green)' : 'var(--muted)'}">${done ? sc : c.maxPts} pts</span>
-      </div>
-      <div style="font-size:9px;color:var(--muted);line-height:1.4;margin-bottom:4px">${c.desc}</div>
-      <span style="font-size:9px;padding:1px 6px;border-radius:3px;background:rgba(56,189,248,.12);color:var(--blue);font-family:var(--mono);font-weight:700">${c.algoReq.toUpperCase()} requis</span>
-    </div>`;
-  }).join('');
+function quizShowQuestion() {
+  if (quizState.idx >= QUIZ_QUESTIONS.length) { quizFinish(); return; }
+  const q = QUIZ_QUESTIONS[quizState.idx];
+  quizState.answered = false;
 
-  document.getElementById('defiList').innerHTML = html;
+  const order = q.opts.map((_, i) => i);
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  quizState.order      = order;
+  quizState.correctPos = order.indexOf(q.correct);
 
-  const total = Object.values(challengeScores).reduce((s, v) => s + (v || 0), 0);
-  document.getElementById('defiScoreRow').style.display = '';
-  const el = document.getElementById('defiTotalEl');
-  el.textContent = total + ' / 300 pts';
-  el.style.color = total >= 200 ? 'var(--green)' : total >= 100 ? 'var(--yellow)' : 'var(--muted)';
+  document.getElementById('quizOverlay').style.display = '';
+  document.getElementById('quizProgress').textContent = `${quizState.idx + 1} / ${QUIZ_QUESTIONS.length}`;
+  document.getElementById('quizQ').textContent = q.q;
+  document.getElementById('quizHint').style.display = 'none';
+  document.getElementById('quizHint').textContent = '';
+
+  const optsEl = document.getElementById('quizOpts');
+  optsEl.innerHTML = order.map((origIdx, pos) =>
+    `<button class="quiz-opt" onclick="quizAnswer(${pos})">${q.opts[origIdx]}</button>`
+  ).join('');
+
+  document.getElementById('quizScoreEl').textContent = quizState.score;
 }
 
-function launchChallenge(id) {
-  const c = CHALLENGES.find(x => x.id === id);
-  if (!c) return;
-  if (running) stopAlgo();
-  activeChallenge = c;
-  loadPreset(c.preset);
-  setAlgo(c.algoReq);
-  setChip(`🏆 Défi ${c.id} — Lance avec ${c.algoReq.toUpperCase()} !`, 'run');
-  showNotif(`🏆 Défi "${c.name}" — Utilise ${c.algoReq.toUpperCase()} !`, 'yellow');
-  renderDefiPanel();
-  updateExpl('idle');
+function quizAnswer(pos) {
+  if (quizState.answered) return;
+  quizState.answered = true;
+
+  const q       = QUIZ_QUESTIONS[quizState.idx];
+  const correct = pos === quizState.correctPos;
+  if (correct) quizState.score += 10;
+
+  const btns = document.querySelectorAll('#quizOpts .quiz-opt');
+  btns.forEach((b, i) => {
+    b.disabled = true;
+    if (i === quizState.correctPos) b.classList.add('quiz-opt-correct');
+    else if (i === pos && !correct) b.classList.add('quiz-opt-wrong');
+  });
+
+  const hintEl = document.getElementById('quizHint');
+  hintEl.textContent = (correct ? '✅ ' : '❌ ') + q.hint;
+  hintEl.style.display = '';
+  hintEl.style.color   = correct ? 'var(--green)' : 'var(--red)';
+
+  document.getElementById('quizScoreEl').textContent = quizState.score;
+
+  quizState.idx++;
+  setTimeout(quizShowQuestion, 3800);
 }
 
-function _scoreChallengeOnFound() {
-  if (!activeChallenge) return;
-  const c = activeChallenge;
+let _quizCloseTimer = null;
 
-  if (algo !== c.algoReq) {
-    showNotif(`❌ Mauvais algo ! Défi exige ${c.algoReq.toUpperCase()}`, 'red');
-    setChip(`❌ Défi échoué — utilise ${c.algoReq.toUpperCase()}`, 'err');
-    activeChallenge = null;
-    renderDefiPanel();
-    return;
+function quizToggleOpen() {
+  const overlay = document.getElementById('quizOverlay');
+  const hidden  = overlay.style.display === 'none';
+
+  if (!hidden) { overlay.style.display = 'none'; return; }
+
+  clearTimeout(_quizCloseTimer);
+  if (quizState.completed) {
+    quizState.idx       = 0;
+    quizState.score     = 0;
+    quizState.completed = false;
+    document.getElementById('quizFinishMsg').style.display = 'none';
+  }
+  quizState.started = true;
+  quizShowQuestion();
+}
+
+async function quizFinish() {
+  quizState.completed = true;
+  document.getElementById('quizQ').textContent = '🎉 Quiz terminé !';
+  document.getElementById('quizOpts').innerHTML = '';
+  document.getElementById('quizHint').style.display = 'none';
+  document.getElementById('quizProgress').textContent = 'Terminé';
+
+  const total = quizState.score;
+  document.getElementById('quizScoreEl').textContent = total;
+
+  const msg = document.getElementById('quizFinishMsg');
+  msg.style.display = '';
+  msg.textContent = total === 100 ? '🏆 Score parfait — expert pathfinding !'
+    : total >= 60 ? `💪 ${total}/100 pts — bon travail !`
+    : `📚 ${total}/100 pts — relis le panneau "Comment ça marche ?" !`;
+
+  if (total > quizState.bestDb) {
+    quizState.bestDb = total;
+    quizUpdateBestEl();
+    try {
+      const user = Auth.getCurrentUser();
+      if (user) await Auth.updateScore(user.username, 'pathfinding', total);
+    } catch (e) { /* silencieux */ }
   }
 
-  const eff = exploredCount > 0 ? (pathCells.length / exploredCount) * 100 : 0;
-  const pts = Math.min(c.maxPts, Math.round(eff * c.effMult));
-  const prev = challengeScores[c.id] || 0;
-  if (pts > prev) challengeScores[c.id] = pts;
+  clearTimeout(_quizCloseTimer);
+  _quizCloseTimer = setTimeout(() => {
+    document.getElementById('quizOverlay').style.display = 'none';
+  }, 6000);
+}
 
-  const total = Object.values(challengeScores).reduce((s, v) => s + (v || 0), 0);
-  if (total > bestDbPathScore) {
-    bestDbPathScore = total;
-    const user = Auth.getCurrentUser();
-    if (user) Auth.updateScore(user.username, 'pathfinding', total).catch(() => {});
-  }
-
-  const won = pts >= c.maxPts * 0.7;
-  showNotif(
-    `${won ? '🎉' : '💪'} Défi ${c.id}: ${pts}/${c.maxPts} pts — Efficacité: ${eff.toFixed(0)}%`,
-    won ? 'green' : 'yellow',
-  );
-  setChip(
-    `${won ? '✅' : '📊'} Défi ${c.id}: ${pts} pts (eff. ${eff.toFixed(0)}%) — Lance un autre !`,
-    won ? 'done' : '',
-  );
-  activeChallenge = null;
-  renderDefiPanel();
+function quizUpdateBestEl() {
+  const el = document.getElementById('quizBestEl');
+  if (!el) return;
+  el.textContent = quizState.bestDb + ' / 100 pts';
+  el.style.color = quizState.bestDb >= 80 ? 'var(--green)' : quizState.bestDb >= 40 ? 'var(--yellow)' : 'var(--muted)';
 }
 
 // ══════════════════════════════════════════════
@@ -1116,12 +1276,12 @@ window.addEventListener('load', () => {
   initGrid();
   updateExpl('idle');
   requestAnimationFrame(draw);
-  // Charge le score DB et initialise le panel
+  // Charge le meilleur score de quiz depuis la DB
   Auth.init().then(() => {
     const user = Auth.getCurrentUser();
-    if (user) bestDbPathScore = user.scores.pathfinding || 0;
-    renderDefiPanel();
-  }).catch(() => renderDefiPanel());
+    if (user) quizState.bestDb = user.scores.pathfinding || 0;
+    quizUpdateBestEl();
+  }).catch(() => {});
 });
 window.addEventListener('resize', initGrid);
 </script>
