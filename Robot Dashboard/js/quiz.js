@@ -132,6 +132,27 @@ function quizAnswer(idx) {
   setTimeout(quizShowQuestion, 4500);
 }
 
+// ── Ouverture manuelle (bouton "🎓 Quiz") ──────────────────────
+// Rouvre le quiz en cours, ou en démarre un nouveau si déjà terminé.
+let _quizCloseTimer = null;
+
+function quizToggleOpen() {
+  const overlay = document.getElementById('quizOverlay');
+  const hidden  = overlay.style.display === 'none';
+
+  if (!hidden) { overlay.style.display = 'none'; return; }
+
+  clearTimeout(_quizCloseTimer);
+  if (quizState.completed) {
+    quizState.idx       = 0;
+    quizState.score     = 0;
+    quizState.completed = false;
+    document.getElementById('quizFinishMsg').style.display = 'none';
+  }
+  quizState.started = true;
+  quizShowQuestion();
+}
+
 // ── Fin du quiz ───────────────────────────────────────────────
 async function quizFinish() {
   quizState.completed = true;
@@ -158,8 +179,9 @@ async function quizFinish() {
     } catch (e) { /* silencieux */ }
   }
 
-  // Ferme après 8 s
-  setTimeout(() => {
+  // Ferme après 8 s (annulé si l'utilisateur relance le quiz entre-temps)
+  clearTimeout(_quizCloseTimer);
+  _quizCloseTimer = setTimeout(() => {
     document.getElementById('quizOverlay').style.display = 'none';
   }, 8000);
 }

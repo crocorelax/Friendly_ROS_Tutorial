@@ -122,11 +122,19 @@ function drawCamera(dt) {
     return;
   }
 
-  // Simulation : vue top-down de l'arène
+  // Simulation : caméra montée sur le robot, orientée vers le bas — le
+  // robot reste fixe au centre (cap vers le haut) et le décor tourne
+  // autour de lui, comme le ferait une vraie caméra embarquée qui pivote
+  // avec le châssis.
   const filter = state.camFilter;
   c.fillStyle = '#1a1208'; c.fillRect(0, 0, W, H);
   const s = Math.min(W, H) / 6;
   const ox = W / 2 - state.odom.x * s * 2, oy = H / 2 - state.odom.y * s * 2;
+
+  c.save();
+  c.translate(W / 2, H / 2);
+  c.rotate(-state.heading * Math.PI / 180);
+  c.translate(-W / 2, -H / 2);
 
   c.fillStyle = '#2d2010'; c.fillRect(ox - 15 * s, oy - 10 * s, 30 * s, 20 * s);
   if (filter !== 'depth') {
@@ -146,7 +154,15 @@ function drawCamera(dt) {
     c.beginPath(); c.arc(px, py, s * .4, 0, Math.PI * 2); c.fill();
     if (filter !== 'depth') { c.fillStyle = '#16a34a'; c.font = `${s * .5}px sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('🌱', px, py); }
   });
-  c.save(); c.translate(W / 2, H / 2); c.rotate(state.heading * Math.PI / 180);
+  if (filter === 'edge') {
+    c.strokeStyle = 'rgba(0,214,143,.6)'; c.lineWidth = 1.5; c.setLineDash([3, 3]);
+    c.strokeRect(ox - 15 * s, oy - 10 * s, 30 * s, 20 * s);
+    c.setLineDash([]);
+  }
+  c.restore();
+
+  // Robot — toujours fixe au centre, cap vers le haut (c'est le décor qui tourne autour de lui)
+  c.save(); c.translate(W / 2, H / 2);
   const rb = s * .8;
   c.fillStyle = filter === 'depth' ? '#60a5fa' : '#1e3a8a';
   c.strokeStyle = filter === 'depth' ? '#bfdbfe' : '#3b82f6'; c.lineWidth = 2;
@@ -154,11 +170,6 @@ function drawCamera(dt) {
   c.fillStyle = filter === 'depth' ? '#fff' : 'rgba(0,214,143,.9)';
   c.beginPath(); c.arc(0, -rb * .2, rb * .4, 0, Math.PI * 2); c.fill();
   c.restore();
-  if (filter === 'edge') {
-    c.strokeStyle = 'rgba(0,214,143,.6)'; c.lineWidth = 1.5; c.setLineDash([3, 3]);
-    c.strokeRect(ox - 15 * s, oy - 10 * s, 30 * s, 20 * s);
-    c.setLineDash([]);
-  }
   c.fillStyle = 'rgba(0,0,0,.5)'; c.fillRect(0, 0, W, 18);
   c.fillStyle = 'rgba(0,214,143,.8)'; c.font = '9px JetBrains Mono,monospace'; c.textAlign = 'left'; c.textBaseline = 'middle';
   c.fillText(`SIM | ${filter.toUpperCase()} | ${new Date().toTimeString().slice(0,8)} | cap: ${state.heading.toFixed(0)}°`, 6, 9);
