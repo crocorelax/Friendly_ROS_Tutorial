@@ -7,7 +7,8 @@ function updateDataUI() {
   };
   setBadge('lidarBadge', active ? 'LIVE' : 'OFFLINE', active ? 'live' : 'offline');
   setBadge('odomBadge',  active ? 'LIVE' : 'OFFLINE', active ? 'live' : 'offline');
-  setBadge('camBadge',   active ? (simMode ? 'SIM' : 'LIVE') : 'OFFLINE', active ? 'live' : 'offline');
+  // La caméra n'est jamais simulée : "LIVE" seulement en vraie connexion robot
+  setBadge('camBadge', (connected && ws) ? 'LIVE' : 'OFFLINE', (connected && ws) ? 'live' : 'offline');
   setBadge('imuBadge',   active ? 'LIVE' : 'OFFLINE', active ? 'live' : 'offline');
   setBadge('diagBadge',  active ? 'LIVE' : 'OFFLINE', active ? 'live' : 'offline');
   setBadge('sysBadge',   active ? 'LIVE' : 'OFFLINE', active ? 'live' : 'offline');
